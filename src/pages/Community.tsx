@@ -1,0 +1,327 @@
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Users, Plus, LogIn, Copy, LogOut, Crown } from "lucide-react";
+import { toast } from "sonner";
+import { startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
+
+const generateCode = () => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+};
+
+interface CommunityData {
+  id: string;
+  name: string;
+  code: string;
+  created_by: string;
+}
+
+interface LeaderboardEntry {
+  user_id: string;
+  username: string;
+  avatar_color: string;
+  weekMinutes: number;
+  isCurrentUser: boolean;
+}
+
+const Community = () => {
+  const { user } = useAuth();
+  const [communities, setCommunities] = useState<CommunityData[]>([]);
+  const [selectedCommunity, setSelectedCommunity] = useState<CommunityData | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [joinPassword, setJoinPassword] = useState("");
+
+  const fetchCommunities = async () => {
+    if (!user) return;
+    const { data: memberships } = await supabase
+      .from("memberships")
+      .select("community_id")
+      .eq("user_id", user.id);
+    if (!memberships || memberships.length === 0) { setCommunities([]); return; }
+    const ids = memberships.map(m => m.community_id);
+    const { data } = await supabase
+      .from("communities")
+      .select("id, name, code, created_by")
+      .in("id", ids);
+    if (data) setCommunities(data);
+  };
+
+  useEffect(() => { fetchCommunities(); }, [user]);
+
+  const fetchLeaderboard = async (communityId: string) => {
+    const { data: members } = await supabase
+      .from("memberships")
+      .select("user_id")
+      .eq("community_id", communityId);
+    if (!members) return;
+
+    const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+
+    const entries: LeaderboardEntry[] = [];
+    for (const member of members) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username, avatar_color")
+        .eq("user_id", member.user_id)
+        .single();
+
+      const { data: sessions } = await supabase
+        .from("study_sessions")
+        .select("duration_minutes, started_at")
+        .eq("user_id", member.user_id);
+
+      const weekMins = (sessions || [])
+        .filter(s => isWithinInterval(new Date(s.started_at), { start: weekStart, end: weekEnd }))
+        .reduce((a, s) => a + s.duration_minutes, 0);
+
+      entries.push({
+        user_id: member.user_id,
+        username: profile?.username || "Unknown",
+        avatar_color: profile?.avatar_color || "#6366F1",
+        weekMinutes: weekMins,
+        isCurrentUser: member.user_id === user?.id,
+      });
+    }
+
+    entries.sort((a, b) => b.weekMinutes - a.weekMinutes);
+    setLeaderboard(entries);
+  };
+
+  const selectCommunity = (c: CommunityData) => {
+    setSelectedCommunity(c);
+    fetchLeaderboard(c.id);
+  };
+
+  const createCommunity = async () => {
+    if (!user || !newName.trim()) return;
+    const code = generateCode();
+    // Simple hash for demo - in production use edge function with bcrypt
+    const { error } = await supabase.from("communities").insert({
+      name: newName.trim(),
+      code,
+      password_hash: newPassword, // simplified for demo
+      created_by: user.id,
+    });
+    if (error) { toast.error(error.message); return; }
+
+    // Get the community we just created
+    const { data: community } = await supabase
+      .from("communities")
+      .select("id")
+      .eq("code", code)
+      .single();
+
+    if (community) {
+      await supabase.from("memberships").insert({
+        user_id: user.id,
+        community_id: community.id,
+        role: "owner",
+      });
+    }
+
+    toast.success(`Community "${newName}" created! Code: ${code}`);
+    setShowCreate(false);
+    setNewName("");
+    setNewPassword("");
+    fetchCommunities();
+  };
+
+  const joinCommunity = async () => {
+    if (!user || !joinCode.trim()) return;
+    const { data: community } = await supabase
+      .from("communities")
+      .select("id, password_hash")
+      .eq("code", joinCode.trim().toUpperCase())
+      .single();
+
+    if (!community) { toast.error("Community not found"); return; }
+    if (community.password_hash && community.password_hash !== joinPassword) {
+      toast.error("Wrong password"); return;
+    }
+
+    const { error } = await supabase.from("memberships").insert({
+      user_id: user.id,
+      community_id: community.id,
+    });
+    if (error) {
+      if (error.code === "23505") toast.error("Already a member!");
+      else toast.error(error.message);
+      return;
+    }
+
+    toast.success("Joined community!");
+    setShowJoin(false);
+    setJoinCode("");
+    setJoinPassword("");
+    fetchCommunities();
+  };
+
+  const leaveCommunity = async (communityId: string) => {
+    if (!user) return;
+    await supabase.from("memberships").delete().eq("user_id", user.id).eq("community_id", communityId);
+    toast.success("Left community");
+    setSelectedCommunity(null);
+    fetchCommunities();
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast.success("Code copied!");
+  };
+
+  const fmtTime = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
+
+  // Empty state
+  if (communities.length === 0 && !selectedCommunity) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[80vh] px-6 space-y-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/20">
+          <Users className="h-8 w-8 text-primary" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-bold text-foreground">No Communities Yet</h2>
+          <p className="text-muted-foreground text-sm">Create or join a community to study together with friends.</p>
+        </div>
+        <div className="w-full max-w-xs space-y-3">
+          <Button variant="gradient" className="w-full h-12" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Create Community
+          </Button>
+          <Button variant="gradient-soft" className="w-full h-12" onClick={() => setShowJoin(true)}>
+            <LogIn className="h-4 w-4 mr-2" /> Join Community
+          </Button>
+        </div>
+
+        {/* Dialogs */}
+        <CreateDialog open={showCreate} onOpenChange={setShowCreate} name={newName} setName={setNewName} password={newPassword} setPassword={setNewPassword} onSubmit={createCommunity} />
+        <JoinDialog open={showJoin} onOpenChange={setShowJoin} code={joinCode} setCode={setJoinCode} password={joinPassword} setPassword={setJoinPassword} onSubmit={joinCommunity} />
+      </div>
+    );
+  }
+
+  // Community view
+  if (selectedCommunity) {
+    return (
+      <div className="px-4 pt-6 pb-4 max-w-md mx-auto space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSelectedCommunity(null)} className="text-primary text-sm font-semibold">← Back</button>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-semibold">{selectedCommunity.name}</span>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowJoin(true)}><LogIn className="h-4 w-4" /></Button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 bg-secondary px-3 py-1.5 rounded-lg text-sm">
+            <span className="text-muted-foreground">Code:</span>
+            <span className="font-bold text-foreground">{selectedCommunity.code}</span>
+            <button onClick={() => copyCode(selectedCommunity.code)}><Copy className="h-3.5 w-3.5 text-muted-foreground" /></button>
+          </div>
+          <button onClick={() => leaveCommunity(selectedCommunity.id)} className="text-destructive text-sm font-semibold flex items-center gap-1">
+            <LogOut className="h-3.5 w-3.5" /> Leave
+          </button>
+        </div>
+
+        <div className="text-xs text-muted-foreground uppercase tracking-wider">This Week · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}</div>
+
+        <div className="space-y-2">
+          {leaderboard.map((entry, i) => (
+            <div key={entry.user_id} className="glass-card p-3 flex items-center gap-3">
+              <span className="text-sm font-bold text-gold w-6">{i + 1}{i === 0 ? "st" : i === 1 ? "nd" : i === 2 ? "rd" : "th"}</span>
+              <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold" style={{ backgroundColor: entry.avatar_color, color: "#fff" }}>
+                {entry.username[0]?.toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-foreground truncate">
+                  {entry.username} {entry.isCurrentUser && <span className="text-muted-foreground">(you)</span>}
+                </div>
+                <div className="h-1.5 bg-secondary rounded-full mt-1 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gold transition-all"
+                    style={{ width: `${Math.min(100, leaderboard[0]?.weekMinutes ? (entry.weekMinutes / leaderboard[0].weekMinutes) * 100 : 0)}%` }}
+                  />
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-bold text-foreground">{fmtTime(entry.weekMinutes)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <CreateDialog open={showCreate} onOpenChange={setShowCreate} name={newName} setName={setNewName} password={newPassword} setPassword={setNewPassword} onSubmit={createCommunity} />
+        <JoinDialog open={showJoin} onOpenChange={setShowJoin} code={joinCode} setCode={setJoinCode} password={joinPassword} setPassword={setJoinPassword} onSubmit={joinCommunity} />
+      </div>
+    );
+  }
+
+  // Community list
+  return (
+    <div className="px-4 pt-6 pb-4 max-w-md mx-auto space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">Communities</h1>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setShowCreate(true)}><Plus className="h-5 w-5" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => setShowJoin(true)}><LogIn className="h-5 w-5" /></Button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {communities.map(c => (
+          <button key={c.id} onClick={() => selectCommunity(c)} className="glass-card w-full p-4 text-left flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold text-foreground">{c.name}</div>
+              <div className="text-xs text-muted-foreground">Code: {c.code}</div>
+            </div>
+            {c.created_by === user?.id && <Crown className="h-4 w-4 text-gold" />}
+          </button>
+        ))}
+      </div>
+
+      <CreateDialog open={showCreate} onOpenChange={setShowCreate} name={newName} setName={setNewName} password={newPassword} setPassword={setNewPassword} onSubmit={createCommunity} />
+      <JoinDialog open={showJoin} onOpenChange={setShowJoin} code={joinCode} setCode={setJoinCode} password={joinPassword} setPassword={setJoinPassword} onSubmit={joinCommunity} />
+    </div>
+  );
+};
+
+const CreateDialog = ({ open, onOpenChange, name, setName, password, setPassword, onSubmit }: any) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="bg-card border-border max-w-sm">
+      <DialogHeader><DialogTitle className="text-foreground">Create Community</DialogTitle></DialogHeader>
+      <div className="space-y-3">
+        <Input placeholder="Community name" value={name} onChange={e => setName(e.target.value)} className="bg-secondary border-border" />
+        <Input placeholder="Password (optional)" type="password" value={password} onChange={e => setPassword(e.target.value)} className="bg-secondary border-border" />
+        <Button variant="gradient" className="w-full" onClick={onSubmit}>Create</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+
+const JoinDialog = ({ open, onOpenChange, code, setCode, password, setPassword, onSubmit }: any) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="bg-card border-border max-w-sm">
+      <DialogHeader><DialogTitle className="text-foreground">Join Community</DialogTitle></DialogHeader>
+      <div className="space-y-3">
+        <Input placeholder="Enter 6-character code" value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={6} className="bg-secondary border-border uppercase tracking-widest text-center font-bold" />
+        <Input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="bg-secondary border-border" />
+        <Button variant="gradient" className="w-full" onClick={onSubmit}>Join</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+
+export default Community;
