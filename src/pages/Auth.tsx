@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookOpen, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { BookOpen, Mail, Lock, Eye, EyeOff, X, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const Auth = () => {
