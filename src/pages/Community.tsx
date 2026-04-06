@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, Plus, LogIn, Copy, LogOut, Crown } from "lucide-react";
+import { Users, Plus, LogIn, Copy, LogOut, Crown, ArrowLeft, Clock, Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, format, subDays } from "date-fns";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 
 const generateCode = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -41,6 +42,9 @@ const Community = () => {
   const [newPassword, setNewPassword] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [joinPassword, setJoinPassword] = useState("");
+  const [selectedMember, setSelectedMember] = useState<LeaderboardEntry | null>(null);
+  const [memberSessions, setMemberSessions] = useState<any[]>([]);
+  const [memberChartRange, setMemberChartRange] = useState<7 | 14 | 30>(7);
 
   const fetchCommunities = async () => {
     if (!user) return;
@@ -105,19 +109,28 @@ const Community = () => {
     fetchLeaderboard(c.id);
   };
 
+  const selectMember = async (entry: LeaderboardEntry) => {
+    setSelectedMember(entry);
+    setMemberChartRange(7);
+    const { data } = await supabase
+      .from("study_sessions")
+      .select("*")
+      .eq("user_id", entry.user_id)
+      .order("started_at", { ascending: false });
+    setMemberSessions(data || []);
+  };
+
   const createCommunity = async () => {
     if (!user || !newName.trim()) return;
     const code = generateCode();
-    // Simple hash for demo - in production use edge function with bcrypt
     const { error } = await supabase.from("communities").insert({
       name: newName.trim(),
       code,
-      password_hash: newPassword, // simplified for demo
+      password_hash: newPassword,
       created_by: user.id,
     });
     if (error) { toast.error(error.message); return; }
 
-    // Get the community we just created
     const { data: community } = await supabase
       .from("communities")
       .select("id")
@@ -184,6 +197,108 @@ const Community = () => {
 
   const fmtTime = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
 
+  // Member chart data
+  const memberChartData = useMemo(() => {
+    const days: { date: string; minutes: number }[] = [];
+    for (let i = memberChartRange - 1; i >= 0; i--) {
+      const day = subDays(new Date(), i);
+      const dayStr = format(day, "yyyy-MM-dd");
+      const mins = memberSessions
+        .filter(s => format(new Date(s.started_at), "yyyy-MM-dd") === dayStr)
+        .reduce((acc: number, s: any) => acc + s.duration_minutes, 0);
+      days.push({ date: format(day, "MMM d"), minutes: mins });
+    }
+    return days;
+  }, [memberSessions, memberChartRange]);
+
+  const memberTodayMinutes = useMemo(() => {
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    return memberSessions
+      .filter(s => format(new Date(s.started_at), "yyyy-MM-dd") === todayStr)
+      .reduce((acc: number, s: any) => acc + s.duration_minutes, 0);
+  }, [memberSessions]);
+
+  const memberWeekMinutes = useMemo(() => {
+    const now = new Date();
+    const start = startOfWeek(now, { weekStartsOn: 1 });
+    const end = endOfWeek(now, { weekStartsOn: 1 });
+    return memberSessions
+      .filter(s => isWithinInterval(new Date(s.started_at), { start, end }))
+      .reduce((acc: number, s: any) => acc + s.duration_minutes, 0);
+  }, [memberSessions]);
+
+  const memberWeeklyAvg = useMemo(() => {
+    if (memberChartData.length === 0) return 0;
+    return Math.round(memberChartData.reduce((a, d) => a + d.minutes, 0) / memberChartData.length);
+  }, [memberChartData]);
+
+  // Member detail view
+  if (selectedMember && selectedCommunity) {
+    return (
+      <div className="px-4 pt-6 pb-4 max-w-md mx-auto space-y-4">
+        <button onClick={() => setSelectedMember(null)} className="text-primary text-sm font-semibold flex items-center gap-1">
+          <ArrowLeft className="h-4 w-4" /> Back to Leaderboard
+        </button>
+
+        <div className="glass-card p-5 flex items-center gap-4">
+          <div className="h-14 w-14 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: selectedMember.avatar_color, color: "#fff" }}>
+            {selectedMember.username[0]?.toUpperCase()}
+          </div>
+          <div>
+            <div className="font-bold text-foreground text-lg">{selectedMember.username}</div>
+            <div className="text-sm text-muted-foreground">{selectedCommunity.name}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="glass-card p-4">
+            <Clock className="h-5 w-5 text-primary mb-1" />
+            <div className="text-xl font-bold text-foreground">{fmtTime(memberTodayMinutes)}</div>
+            <div className="text-xs text-muted-foreground">Today</div>
+          </div>
+          <div className="glass-card p-4">
+            <Calendar className="h-5 w-5 text-primary mb-1" />
+            <div className="text-xl font-bold text-foreground">{fmtTime(memberWeekMinutes)}</div>
+            <div className="text-xs text-muted-foreground">This Week</div>
+          </div>
+        </div>
+
+        <div className="glass-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-foreground">Daily Study Time</span>
+            <div className="flex gap-1">
+              {([7, 14, 30] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setMemberChartRange(r)}
+                  className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                    memberChartRange === r ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {r}d
+                </button>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <LineChart data={memberChartData}>
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(228 15% 55%)" }} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip
+                contentStyle={{ background: "hsl(228 25% 12%)", border: "1px solid hsl(228 20% 18%)", borderRadius: 8, color: "hsl(210 40% 95%)" }}
+                formatter={(v: number) => [`${v}m`, "Study Time"]}
+              />
+              <Line type="monotone" dataKey="minutes" stroke="hsl(234 80% 63%)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Daily avg: <span className="font-semibold text-foreground">{memberWeeklyAvg}m/day</span></span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Empty state
   if (communities.length === 0 && !selectedCommunity) {
     return (
@@ -204,7 +319,6 @@ const Community = () => {
           </Button>
         </div>
 
-        {/* Dialogs */}
         <CreateDialog open={showCreate} onOpenChange={setShowCreate} name={newName} setName={setNewName} password={newPassword} setPassword={setNewPassword} onSubmit={createCommunity} />
         <JoinDialog open={showJoin} onOpenChange={setShowJoin} code={joinCode} setCode={setJoinCode} password={joinPassword} setPassword={setJoinPassword} onSubmit={joinCommunity} />
       </div>
@@ -238,7 +352,11 @@ const Community = () => {
 
         <div className="space-y-2">
           {leaderboard.map((entry, i) => (
-            <div key={entry.user_id} className="glass-card p-3 flex items-center gap-3">
+            <button
+              key={entry.user_id}
+              onClick={() => selectMember(entry)}
+              className="glass-card w-full p-3 flex items-center gap-3 text-left hover:ring-1 hover:ring-primary/30 transition-all cursor-pointer"
+            >
               <span className="text-sm font-bold text-gold w-6">{i + 1}{i === 0 ? "st" : i === 1 ? "nd" : i === 2 ? "rd" : "th"}</span>
               <div className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold" style={{ backgroundColor: entry.avatar_color, color: "#fff" }}>
                 {entry.username[0]?.toUpperCase()}
@@ -257,7 +375,7 @@ const Community = () => {
               <div className="text-right">
                 <div className="text-sm font-bold text-foreground">{fmtTime(entry.weekMinutes)}</div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 

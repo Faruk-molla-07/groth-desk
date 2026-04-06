@@ -3,13 +3,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LogOut, Pencil, Clock, CheckSquare, Flame, Zap, Check } from "lucide-react";
+import { LogOut, Pencil, Clock, CheckSquare, Flame, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { format, differenceInCalendarDays } from "date-fns";
 
-const avatarColors = [
-  "#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16",
-];
 
 const Profile = () => {
   const { user, signOut } = useAuth();
@@ -42,11 +39,6 @@ const Profile = () => {
     toast.success("Username updated!");
   };
 
-  const updateColor = async (color: string) => {
-    if (!user) return;
-    await supabase.from("profiles").update({ avatar_color: color }).eq("user_id", user.id);
-    setProfile({ ...profile, avatar_color: color });
-  };
 
   const totalMinutes = useMemo(() => sessions.reduce((a, s) => a + s.duration_minutes, 0), [sessions]);
 
@@ -102,21 +94,6 @@ const Profile = () => {
           </button>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-border">
-          <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Avatar Color</div>
-          <div className="flex gap-2 flex-wrap">
-            {avatarColors.map(c => (
-              <button
-                key={c}
-                onClick={() => updateColor(c)}
-                className="h-8 w-8 rounded-full flex items-center justify-center transition-transform hover:scale-110"
-                style={{ backgroundColor: c }}
-              >
-                {profile.avatar_color === c && <Check className="h-4 w-4" style={{ color: "#fff" }} />}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Stats */}
