@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Plus, Clock, Calendar, Minus } from "lucide-react";
+import { Pencil, Plus, Clock, Calendar, Minus, Trash2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { format, subDays, startOfDay, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
@@ -17,6 +17,10 @@ const Progress = () => {
   const [subject, setSubject] = useState("Other");
   const [sessions, setSessions] = useState<any[]>([]);
   const [chartRange, setChartRange] = useState<7 | 14 | 30>(7);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editHours, setEditHours] = useState(0);
+  const [editMinutes, setEditMinutes] = useState(0);
+  const [editSubject, setEditSubject] = useState("Other");
 
   const fetchSessions = async () => {
     if (!user) return;
@@ -43,6 +47,34 @@ const Progress = () => {
     if (error) { toast.error(error.message); return; }
     toast.success(`Added ${hours}h ${minutes}m of ${subject}`);
     setHours(0); setMinutes(0);
+    fetchSessions();
+  };
+
+  const deleteSession = async (id: string) => {
+    const { error } = await supabase.from("study_sessions").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Session deleted");
+    fetchSessions();
+  };
+
+  const startEdit = (session: any) => {
+    setEditingId(session.id);
+    setEditHours(Math.floor(session.duration_minutes / 60));
+    setEditMinutes(session.duration_minutes % 60);
+    setEditSubject(session.subject);
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const totalMinutes = editHours * 60 + editMinutes;
+    if (totalMinutes === 0) { toast.error("Duration can't be zero"); return; }
+    const { error } = await supabase.from("study_sessions").update({
+      duration_minutes: totalMinutes,
+      subject: editSubject,
+    }).eq("id", editingId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Session updated");
+    setEditingId(null);
     fetchSessions();
   };
 
@@ -79,7 +111,7 @@ const Progress = () => {
   const fmtTime = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
 
   return (
-    <div className="px-4 pt-6 pb-4 max-w-md mx-auto space-y-5">
+    <div className="px-4 pt-6 pb-24 max-w-md mx-auto space-y-5">
       <h1 className="text-2xl font-bold text-foreground">My Progress</h1>
 
       {/* Log Study Time */}
@@ -169,6 +201,62 @@ const Progress = () => {
           <span>Weekly avg: <span className="font-semibold text-foreground">{weeklyAvg}m/day</span></span>
         </div>
       </div>
+
+      {/* Study Sessions List */}
+      {sessions.length > 0 && (
+        <div className="glass-card p-4 space-y-3">
+          <span className="font-semibold text-foreground text-sm">Study Sessions</span>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {sessions.map(session => (
+              <div key={session.id} className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2.5">
+                {editingId === session.id ? (
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditHours(Math.max(0, editHours - 1))}><Minus className="h-2.5 w-2.5" /></Button>
+                        <span className="text-sm font-bold text-foreground w-5 text-center">{editHours}h</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditHours(editHours + 1)}><Plus className="h-2.5 w-2.5" /></Button>
+                      </div>
+                      <span className="text-muted-foreground">:</span>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditMinutes(Math.max(0, editMinutes - 5))}><Minus className="h-2.5 w-2.5" /></Button>
+                        <span className="text-sm font-bold text-foreground w-7 text-center">{editMinutes}m</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditMinutes(Math.min(55, editMinutes + 5))}><Plus className="h-2.5 w-2.5" /></Button>
+                      </div>
+                      <Select value={editSubject} onValueChange={setEditSubject}>
+                        <SelectTrigger className="w-20 h-7 text-xs bg-secondary border-border">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-green-400 hover:text-green-300" onClick={saveEdit}><Check className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setEditingId(null)}><X className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">{fmtTime(session.duration_minutes)}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-primary/20 text-primary font-medium">{session.subject}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{format(new Date(session.started_at), "MMM d, h:mm a")}</span>
+                    </div>
+                    <div className="flex gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => startEdit(session)}><Pencil className="h-3 w-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteSession(session.id)}><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
