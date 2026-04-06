@@ -9,12 +9,8 @@ import { toast } from "sonner";
 import { startOfWeek, endOfWeek, isWithinInterval, format, subDays } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 
-const generateCode = () => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-};
+
+
 
 interface CommunityData {
   id: string;
