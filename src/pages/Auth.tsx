@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BookOpen, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { BookOpen, Mail, Lock, Eye, EyeOff, X, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const Auth = () => {
@@ -12,6 +13,8 @@ const Auth = () => {
   const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showVerifyPopup, setShowVerifyPopup] = useState(false);
+  const [signupEmail, setSignupEmail] = useState("");
   const { signIn, signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,7 +26,8 @@ const Auth = () => {
         toast.success("Welcome back!");
       } else {
         await signUp(email, password, username);
-        toast.success("Account created! Check your email to verify.");
+        setSignupEmail(email);
+        setShowVerifyPopup(true);
       }
     } catch (err: any) {
       toast.error(err.message);
@@ -123,6 +127,33 @@ const Auth = () => {
           </button>
         </p>
       </div>
+
+      <Dialog open={showVerifyPopup} onOpenChange={() => {}}>
+        <DialogContent className="max-w-sm bg-card border-border text-foreground [&>button]:hidden">
+          <DialogTitle className="sr-only">Email Verification</DialogTitle>
+          <div className="flex flex-col items-center gap-4 py-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
+              <MailCheck className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold">Verify Your Email</h2>
+            <p className="text-muted-foreground text-sm">
+              We've sent a verification link to <span className="font-semibold text-foreground">{signupEmail}</span>. Please check your inbox and click the link to activate your account.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-2 gap-2"
+              onClick={() => {
+                setShowVerifyPopup(false);
+                setEmail("");
+                setPassword("");
+                setUsername("");
+              }}
+            >
+              <X className="h-4 w-4" /> Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
