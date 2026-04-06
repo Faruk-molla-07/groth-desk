@@ -25,7 +25,8 @@ const Auth = () => {
         toast.success("Welcome back!");
       } else {
         await signUp(email, password, username);
-        toast.success("Account created! Check your email to verify.");
+        setSignupEmail(email);
+        setShowVerifyPopup(true);
       }
     } catch (err: any) {
       toast.error(err.message);
