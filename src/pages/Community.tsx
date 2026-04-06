@@ -9,12 +9,8 @@ import { toast } from "sonner";
 import { startOfWeek, endOfWeek, isWithinInterval, format, subDays } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 
-const generateCode = () => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-};
+
+
 
 interface CommunityData {
   id: string;
@@ -122,30 +118,15 @@ const Community = () => {
 
   const createCommunity = async () => {
     if (!user || !newName.trim()) return;
-    const code = generateCode();
-    const { error } = await supabase.from("communities").insert({
-      name: newName.trim(),
-      code,
-      password_hash: newPassword,
-      created_by: user.id,
+    const { data, error } = await supabase.rpc("create_community_with_password", {
+      _name: newName.trim(),
+      _password: newPassword || "",
     });
     if (error) { toast.error(error.message); return; }
+    const result = data as any;
+    if (!result.success) { toast.error(result.error); return; }
 
-    const { data: community } = await supabase
-      .from("communities")
-      .select("id")
-      .eq("code", code)
-      .single();
-
-    if (community) {
-      await supabase.from("memberships").insert({
-        user_id: user.id,
-        community_id: community.id,
-        role: "owner",
-      });
-    }
-
-    toast.success(`Community "${newName}" created! Code: ${code}`);
+    toast.success(`Community "${newName}" created! Code: ${result.code}`);
     setShowCreate(false);
     setNewName("");
     setNewPassword("");
@@ -154,26 +135,13 @@ const Community = () => {
 
   const joinCommunity = async () => {
     if (!user || !joinCode.trim()) return;
-    const { data: community } = await supabase
-      .from("communities")
-      .select("id, password_hash")
-      .eq("code", joinCode.trim().toUpperCase())
-      .single();
-
-    if (!community) { toast.error("Community not found"); return; }
-    if (community.password_hash && community.password_hash !== joinPassword) {
-      toast.error("Wrong password"); return;
-    }
-
-    const { error } = await supabase.from("memberships").insert({
-      user_id: user.id,
-      community_id: community.id,
+    const { data, error } = await supabase.rpc("join_community_with_password", {
+      _code: joinCode.trim(),
+      _password: joinPassword || "",
     });
-    if (error) {
-      if (error.code === "23505") toast.error("Already a member!");
-      else toast.error(error.message);
-      return;
-    }
+    if (error) { toast.error(error.message); return; }
+    const result = data as any;
+    if (!result.success) { toast.error(result.error); return; }
 
     toast.success("Joined community!");
     setShowJoin(false);
