@@ -94,21 +94,6 @@ const Profile = () => {
           </button>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-border">
-          <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Avatar Color</div>
-          <div className="flex gap-2 flex-wrap">
-            {avatarColors.map(c => (
-              <button
-                key={c}
-                onClick={() => updateColor(c)}
-                className="h-8 w-8 rounded-full flex items-center justify-center transition-transform hover:scale-110"
-                style={{ backgroundColor: c }}
-              >
-                {profile.avatar_color === c && <Check className="h-4 w-4" style={{ color: "#fff" }} />}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Stats */}
