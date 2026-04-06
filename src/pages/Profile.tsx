@@ -39,11 +39,6 @@ const Profile = () => {
     toast.success("Username updated!");
   };
 
-  const updateColor = async (color: string) => {
-    if (!user) return;
-    await supabase.from("profiles").update({ avatar_color: color }).eq("user_id", user.id);
-    setProfile({ ...profile, avatar_color: color });
-  };
 
   const totalMinutes = useMemo(() => sessions.reduce((a, s) => a + s.duration_minutes, 0), [sessions]);
 
