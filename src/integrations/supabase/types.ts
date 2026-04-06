@@ -21,7 +21,6 @@ export type Database = {
           created_by: string
           id: string
           name: string
-          password_hash: string
         }
         Insert: {
           code: string
@@ -29,7 +28,6 @@ export type Database = {
           created_by: string
           id?: string
           name: string
-          password_hash: string
         }
         Update: {
           code?: string
@@ -37,9 +35,34 @@ export type Database = {
           created_by?: string
           id?: string
           name?: string
-          password_hash?: string
         }
         Relationships: []
+      }
+      community_secrets: {
+        Row: {
+          community_id: string
+          id: string
+          password_hash: string
+        }
+        Insert: {
+          community_id: string
+          id?: string
+          password_hash?: string
+        }
+        Update: {
+          community_id?: string
+          id?: string
+          password_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_secrets_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: true
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       memberships: {
         Row: {
