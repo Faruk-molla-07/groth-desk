@@ -164,9 +164,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_community_with_password: {
+        Args: { _name: string; _password: string }
+        Returns: Json
+      }
       is_community_member: {
         Args: { _community_id: string; _user_id: string }
         Returns: boolean
+      }
+      join_community_with_password: {
+        Args: { _code: string; _password: string }
+        Returns: Json
       }
     }
     Enums: {
