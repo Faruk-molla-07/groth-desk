@@ -7,9 +7,6 @@ import { LogOut, Pencil, Clock, CheckSquare, Flame, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { format, differenceInCalendarDays } from "date-fns";
 
-const avatarColors = [
-  "#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16",
-];
 
 const Profile = () => {
   const { user, signOut } = useAuth();
