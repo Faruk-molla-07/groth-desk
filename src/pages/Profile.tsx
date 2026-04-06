@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LogOut, Pencil, Clock, CheckSquare, Flame, Zap, Check } from "lucide-react";
+import { LogOut, Pencil, Clock, CheckSquare, Flame, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { format, differenceInCalendarDays } from "date-fns";
 
