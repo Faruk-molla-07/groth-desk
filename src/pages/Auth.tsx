@@ -115,6 +115,20 @@ const Auth = () => {
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
+          {!isSignIn && (
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="h-12 bg-secondary border-border pl-11 pr-11 text-foreground placeholder:text-muted-foreground"
+                required
+                minLength={6}
+              />
+              <Lock className="absolute left-3.5 top-3.5 h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
           <Button type="submit" variant="gradient" className="w-full h-12 text-base" disabled={loading}>
             {loading ? "Please wait..." : isSignIn ? "Sign In" : "Create Account"}
           </Button>
