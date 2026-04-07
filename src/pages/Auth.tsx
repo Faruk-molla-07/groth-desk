@@ -26,8 +26,7 @@ const Auth = () => {
         toast.success("Welcome back!");
       } else {
         await signUp(email, password, username);
-        setSignupEmail(email);
-        setShowVerifyPopup(true);
+        toast.success("Account created! Welcome to StudyTrack!");
       }
     } catch (err: any) {
       toast.error(err.message);
