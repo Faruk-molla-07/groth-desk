@@ -12,8 +12,7 @@ const Auth = () => {
   const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showVerifyPopup, setShowVerifyPopup] = useState(false);
-  const [signupEmail, setSignupEmail] = useState("");
+  const { signIn, signUp } = useAuth();
   const { signIn, signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
