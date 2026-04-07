@@ -28,8 +28,6 @@ const Auth = () => {
         toast.success("Welcome back!");
       } else {
         await signUp(email, password, username);
-        // Auto sign-in after account creation
-        await signIn(email, password);
         toast.success("Account created! Welcome to StudyTrack!");
       }
     } catch (err: any) {
