@@ -9,6 +9,7 @@ const Auth = () => {
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -16,6 +17,10 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSignIn && password !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
     setLoading(true);
     try {
       if (isSignIn) {
@@ -23,6 +28,8 @@ const Auth = () => {
         toast.success("Welcome back!");
       } else {
         await signUp(email, password, username);
+        // Auto sign-in after account creation
+        await signIn(email, password);
         toast.success("Account created! Welcome to StudyTrack!");
       }
     } catch (err: any) {
@@ -108,6 +115,20 @@ const Auth = () => {
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
+          {!isSignIn && (
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="h-12 bg-secondary border-border pl-11 pr-11 text-foreground placeholder:text-muted-foreground"
+                required
+                minLength={6}
+              />
+              <Lock className="absolute left-3.5 top-3.5 h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
           <Button type="submit" variant="gradient" className="w-full h-12 text-base" disabled={loading}>
             {loading ? "Please wait..." : isSignIn ? "Sign In" : "Create Account"}
           </Button>
