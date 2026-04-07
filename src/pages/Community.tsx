@@ -64,37 +64,34 @@ const Community = () => {
       .from("memberships")
       .select("user_id")
       .eq("community_id", communityId);
-    if (!members) return;
+    if (!members || members.length === 0) { setLeaderboard([]); return; }
+
+    const userIds = [...new Set(members.map(m => m.user_id))];
 
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
-    const entries: LeaderboardEntry[] = [];
-    for (const member of members) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("username, avatar_color")
-        .eq("user_id", member.user_id)
-        .single();
+    const [{ data: profiles }, { data: sessions }] = await Promise.all([
+      supabase.from("profiles").select("user_id, username, avatar_color").in("user_id", userIds),
+      supabase.from("study_sessions").select("user_id, duration_minutes, started_at").in("user_id", userIds),
+    ]);
 
-      const { data: sessions } = await supabase
-        .from("study_sessions")
-        .select("duration_minutes, started_at")
-        .eq("user_id", member.user_id);
+    const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
 
+    const entries: LeaderboardEntry[] = userIds.map(uid => {
+      const profile = profileMap.get(uid);
       const weekMins = (sessions || [])
-        .filter(s => isWithinInterval(new Date(s.started_at), { start: weekStart, end: weekEnd }))
+        .filter(s => s.user_id === uid && isWithinInterval(new Date(s.started_at), { start: weekStart, end: weekEnd }))
         .reduce((a, s) => a + s.duration_minutes, 0);
-
-      entries.push({
-        user_id: member.user_id,
+      return {
+        user_id: uid,
         username: profile?.username || "Unknown",
         avatar_color: profile?.avatar_color || "#6366F1",
         weekMinutes: weekMins,
-        isCurrentUser: member.user_id === user?.id,
-      });
-    }
+        isCurrentUser: uid === user?.id,
+      };
+    });
 
     entries.sort((a, b) => b.weekMinutes - a.weekMinutes);
     setLeaderboard(entries);
