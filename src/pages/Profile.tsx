@@ -19,8 +19,25 @@ const Profile = () => {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: p } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
-      if (p) { setProfile(p); setEditName(p.username); }
+      const { data: p } = await supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
+      if (p) {
+        setProfile(p);
+        setEditName(p.username);
+      } else {
+        // Auto-create profile from auth metadata
+        const username = user.user_metadata?.username || user.email?.split("@")[0] || "User";
+        const colors = ["#6C5CE7", "#00B894", "#E17055", "#0984E3", "#D63031", "#E84393"];
+        const avatar_color = colors[Math.floor(Math.random() * colors.length)];
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .insert({ user_id: user.id, username, avatar_color })
+          .select()
+          .single();
+        if (newProfile) {
+          setProfile(newProfile);
+          setEditName(newProfile.username);
+        }
+      }
 
       const { data: s } = await supabase.from("study_sessions").select("*").eq("user_id", user.id).order("started_at", { ascending: true });
       if (s) setSessions(s);
