@@ -9,6 +9,7 @@ const Auth = () => {
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -16,6 +17,10 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSignIn && password !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
     setLoading(true);
     try {
       if (isSignIn) {
@@ -23,6 +28,8 @@ const Auth = () => {
         toast.success("Welcome back!");
       } else {
         await signUp(email, password, username);
+        // Auto sign-in after account creation
+        await signIn(email, password);
         toast.success("Account created! Welcome to StudyTrack!");
       }
     } catch (err: any) {
