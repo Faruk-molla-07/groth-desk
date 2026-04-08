@@ -121,7 +121,6 @@ const Community = () => {
     });
     if (error) { toast.error(error.message); return; }
     const result = data as any;
-    if (!result.success) { toast.error(result.error); return; }
 
     toast.success(`Community "${newName}" created! Code: ${result.code}`);
     setShowCreate(false);
@@ -137,8 +136,6 @@ const Community = () => {
       _password: joinPassword || "",
     });
     if (error) { toast.error(error.message); return; }
-    const result = data as any;
-    if (!result.success) { toast.error(result.error); return; }
 
     toast.success("Joined community!");
     setShowJoin(false);
