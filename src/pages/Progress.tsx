@@ -17,6 +17,8 @@ const Progress = () => {
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
   const [subject, setSubject] = useState("Other");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
   const [chartRange, setChartRange] = useState<7 | 14 | 30>(7);
   const [editingId, setEditingId] = useState<string | null>(null);
