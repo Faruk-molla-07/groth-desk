@@ -3,7 +3,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Plus, Clock, Calendar, Minus, Trash2, Check, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Pencil, Plus, Clock, Calendar, Minus, Trash2, Check, X, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { format, subDays, startOfDay, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
@@ -15,6 +17,8 @@ const Progress = () => {
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
   const [subject, setSubject] = useState("Other");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
   const [chartRange, setChartRange] = useState<7 | 14 | 30>(7);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -38,15 +42,20 @@ const Progress = () => {
     const totalMinutes = hours * 60 + minutes;
     if (totalMinutes === 0) { toast.error("Add some study time!"); return; }
     if (!user) return;
+    const logDate = new Date(selectedDate);
+    const now = new Date();
+    logDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
     const { error } = await supabase.from("study_sessions").insert({
       user_id: user.id,
       duration_minutes: totalMinutes,
       subject,
-      started_at: new Date().toISOString(),
+      started_at: logDate.toISOString(),
     });
     if (error) { toast.error(error.message); return; }
-    toast.success(`Added ${hours}h ${minutes}m of ${subject}`);
-    setHours(0); setMinutes(0);
+    const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+    const dateLabel = isToday ? "today" : format(selectedDate, "MMM d");
+    toast.success(`Added ${hours}h ${minutes}m of ${subject} for ${dateLabel}`);
+    setHours(0); setMinutes(0); setSelectedDate(new Date());
     fetchSessions();
   };
 
@@ -116,8 +125,35 @@ const Progress = () => {
 
       {/* Log Study Time */}
       <div className="glass-card p-5 space-y-4">
-        <div className="flex items-center gap-2 text-foreground font-semibold">
-          <Pencil className="h-4 w-4" /> Log Study Time
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-foreground font-semibold">
+            <Pencil className="h-4 w-4" /> Log Study Time
+          </div>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors border border-border">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+                  ? "Today"
+                  : format(selectedDate, "MMM d, yyyy")}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-card border-border" align="end">
+              <CalendarComponent
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date);
+                    setDatePickerOpen(false);
+                  }
+                }}
+                disabled={(date) => date > new Date()}
+                initialFocus
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex-1 space-y-1">
