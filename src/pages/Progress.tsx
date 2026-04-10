@@ -42,15 +42,20 @@ const Progress = () => {
     const totalMinutes = hours * 60 + minutes;
     if (totalMinutes === 0) { toast.error("Add some study time!"); return; }
     if (!user) return;
+    const logDate = new Date(selectedDate);
+    const now = new Date();
+    logDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
     const { error } = await supabase.from("study_sessions").insert({
       user_id: user.id,
       duration_minutes: totalMinutes,
       subject,
-      started_at: new Date().toISOString(),
+      started_at: logDate.toISOString(),
     });
     if (error) { toast.error(error.message); return; }
-    toast.success(`Added ${hours}h ${minutes}m of ${subject}`);
-    setHours(0); setMinutes(0);
+    const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+    const dateLabel = isToday ? "today" : format(selectedDate, "MMM d");
+    toast.success(`Added ${hours}h ${minutes}m of ${subject} for ${dateLabel}`);
+    setHours(0); setMinutes(0); setSelectedDate(new Date());
     fetchSessions();
   };
 
