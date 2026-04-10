@@ -125,8 +125,35 @@ const Progress = () => {
 
       {/* Log Study Time */}
       <div className="glass-card p-5 space-y-4">
-        <div className="flex items-center gap-2 text-foreground font-semibold">
-          <Pencil className="h-4 w-4" /> Log Study Time
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-foreground font-semibold">
+            <Pencil className="h-4 w-4" /> Log Study Time
+          </div>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors border border-border">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+                  ? "Today"
+                  : format(selectedDate, "MMM d, yyyy")}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-card border-border" align="end">
+              <CalendarComponent
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(date);
+                    setDatePickerOpen(false);
+                  }
+                }}
+                disabled={(date) => date > new Date()}
+                initialFocus
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex-1 space-y-1">
