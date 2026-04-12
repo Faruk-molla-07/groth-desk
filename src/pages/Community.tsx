@@ -41,6 +41,7 @@ const Community = () => {
   const [selectedMember, setSelectedMember] = useState<LeaderboardEntry | null>(null);
   const [memberSessions, setMemberSessions] = useState<any[]>([]);
   const [memberChartRange, setMemberChartRange] = useState<7 | 14 | 30>(7);
+  const [leaderboardMode, setLeaderboardMode] = useState<"weekly" | "monthly" | "alltime">("weekly");
 
   const fetchCommunities = async () => {
     if (!user) return;
