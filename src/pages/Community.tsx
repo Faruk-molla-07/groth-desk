@@ -60,7 +60,16 @@ const Community = () => {
 
   useEffect(() => { fetchCommunities(); }, [user]);
 
-  const fetchLeaderboard = async (communityId: string) => {
+  const getFriWeekRange = () => {
+    const now = new Date();
+    const fri = isFriday(now) ? now : previousFriday(now);
+    const start = new Date(fri.getFullYear(), fri.getMonth(), fri.getDate(), 0, 0, 0);
+    const end = addDays(start, 6);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  };
+
+  const fetchLeaderboard = async (communityId: string, mode: "weekly" | "monthly" | "alltime" = leaderboardMode) => {
     const { data: members } = await supabase
       .from("memberships")
       .select("user_id")
@@ -69,10 +78,6 @@ const Community = () => {
 
     const userIds = [...new Set(members.map(m => m.user_id))];
 
-    const now = new Date();
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-
     const [{ data: profiles }, { data: sessions }] = await Promise.all([
       supabase.from("profiles").select("user_id, username, avatar_color").in("user_id", userIds),
       supabase.from("study_sessions").select("user_id, duration_minutes, started_at").in("user_id", userIds),
@@ -80,16 +85,29 @@ const Community = () => {
 
     const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
 
+    let filterFn: (s: any) => boolean;
+    if (mode === "weekly") {
+      const { start, end } = getFriWeekRange();
+      filterFn = (s) => isWithinInterval(new Date(s.started_at), { start, end });
+    } else if (mode === "monthly") {
+      const now = new Date();
+      const start = startOfMonth(now);
+      const end = endOfMonth(now);
+      filterFn = (s) => isWithinInterval(new Date(s.started_at), { start, end });
+    } else {
+      filterFn = () => true;
+    }
+
     const entries: LeaderboardEntry[] = userIds.map(uid => {
       const profile = profileMap.get(uid);
-      const weekMins = (sessions || [])
-        .filter(s => s.user_id === uid && isWithinInterval(new Date(s.started_at), { start: weekStart, end: weekEnd }))
+      const mins = (sessions || [])
+        .filter(s => s.user_id === uid && filterFn(s))
         .reduce((a, s) => a + s.duration_minutes, 0);
       return {
         user_id: uid,
         username: profile?.username || "Unknown",
         avatar_color: profile?.avatar_color || "#6366F1",
-        weekMinutes: weekMins,
+        weekMinutes: mins,
         isCurrentUser: uid === user?.id,
       };
     });
