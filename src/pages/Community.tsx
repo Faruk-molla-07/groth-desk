@@ -329,7 +329,24 @@ const Community = () => {
           </button>
         </div>
 
-        <div className="text-xs text-muted-foreground uppercase tracking-wider">This Week · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}</div>
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-muted-foreground uppercase tracking-wider">
+            {leaderboardMode === "weekly" ? "This Week (Fri–Thu)" : leaderboardMode === "monthly" ? "This Month" : "All Time"} · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}
+          </div>
+        </div>
+        <div className="flex gap-1">
+          {(["weekly", "monthly", "alltime"] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => { setLeaderboardMode(mode); fetchLeaderboard(selectedCommunity.id, mode); }}
+              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                leaderboardMode === mode ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+              }`}
+            >
+              {mode === "weekly" ? "Weekly" : mode === "monthly" ? "Monthly" : "All Time"}
+            </button>
+          ))}
+        </div>
 
         <div className="space-y-2">
           {leaderboard.map((entry, i) => (
