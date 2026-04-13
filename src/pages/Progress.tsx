@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { format, subDays, startOfDay, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 
-const subjects = ["Math", "Science", "English", "History", "CS", "Art", "Music", "Other"];
+const subjects = ["Math", "Physics", "Chemistry", "Biology", "English", "History", "Bangla", "Ars", "Commerce", "Other"];
 
 const Progress = () => {
   const { user } = useAuth();
