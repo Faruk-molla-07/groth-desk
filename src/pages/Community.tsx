@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Users, Plus, LogIn, Copy, LogOut, Crown, ArrowLeft, Clock, Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { startOfWeek, endOfWeek, isWithinInterval, format, subDays, startOfMonth, endOfMonth, isFriday, previousFriday, nextThursday, addDays } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, format, subDays, startOfMonth, endOfMonth, isSaturday, previousSaturday, addDays } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 
 
@@ -60,10 +60,10 @@ const Community = () => {
 
   useEffect(() => { fetchCommunities(); }, [user]);
 
-  const getFriWeekRange = () => {
+  const getSatWeekRange = () => {
     const now = new Date();
-    const fri = isFriday(now) ? now : previousFriday(now);
-    const start = new Date(fri.getFullYear(), fri.getMonth(), fri.getDate(), 0, 0, 0);
+    const sat = isSaturday(now) ? now : previousSaturday(now);
+    const start = new Date(sat.getFullYear(), sat.getMonth(), sat.getDate(), 0, 0, 0);
     const end = addDays(start, 6);
     end.setHours(23, 59, 59, 999);
     return { start, end };
@@ -87,7 +87,7 @@ const Community = () => {
 
     let filterFn: (s: any) => boolean;
     if (mode === "weekly") {
-      const { start, end } = getFriWeekRange();
+      const { start, end } = getSatWeekRange();
       filterFn = (s) => isWithinInterval(new Date(s.started_at), { start, end });
     } else if (mode === "monthly") {
       const now = new Date();
@@ -331,7 +331,7 @@ const Community = () => {
 
         <div className="flex items-center justify-between">
           <div className="text-xs text-muted-foreground uppercase tracking-wider">
-            {leaderboardMode === "weekly" ? "This Week (Fri–Thu)" : leaderboardMode === "monthly" ? "This Month" : "All Time"} · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}
+            {leaderboardMode === "weekly" ? "This Week (Sat–Fri)" : leaderboardMode === "monthly" ? "This Month" : "All Time"} · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}
           </div>
         </div>
         <div className="flex gap-1">
