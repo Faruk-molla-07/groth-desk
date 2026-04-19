@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Users, Plus, LogIn, Copy, LogOut, Crown, ArrowLeft, Clock, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { startOfWeek, endOfWeek, isWithinInterval, format, subDays, startOfMonth, endOfMonth, isSaturday, previousSaturday, addDays } from "date-fns";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, Cell } from "recharts";
 
 
 
@@ -213,6 +213,42 @@ const Community = () => {
     return Math.round(memberChartData.reduce((a, d) => a + d.minutes, 0) / memberChartData.length);
   }, [memberChartData]);
 
+  const memberSubjectData = useMemo(() => {
+    const cutoff = subDays(new Date(), memberChartRange - 1);
+    cutoff.setHours(0, 0, 0, 0);
+    const totals = new Map<string, number>();
+    memberSessions
+      .filter((s: any) => new Date(s.started_at) >= cutoff)
+      .forEach((s: any) => totals.set(s.subject || "Other", (totals.get(s.subject || "Other") || 0) + s.duration_minutes));
+    return Array.from(totals.entries())
+      .map(([subject, minutes]) => ({ subject, minutes }))
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [memberSessions, memberChartRange]);
+
+  const subjectColors = ["hsl(234 80% 63%)", "hsl(280 70% 60%)", "hsl(180 65% 55%)", "hsl(45 90% 60%)", "hsl(340 75% 60%)", "hsl(150 60% 55%)", "hsl(20 85% 60%)", "hsl(210 70% 60%)", "hsl(300 60% 60%)", "hsl(95 55% 55%)"];
+
+  // Live updates for selected member's sessions
+  useEffect(() => {
+    if (!selectedMember) return;
+    const channel = supabase
+      .channel(`member-sessions-${selectedMember.user_id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "study_sessions", filter: `user_id=eq.${selectedMember.user_id}` },
+        async () => {
+          const { data } = await supabase
+            .from("study_sessions")
+            .select("*")
+            .eq("user_id", selectedMember.user_id)
+            .order("started_at", { ascending: false });
+          setMemberSessions(data || []);
+          if (selectedCommunity) fetchLeaderboard(selectedCommunity.id);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedMember?.user_id]);
+
   // Member detail view
   if (selectedMember && selectedCommunity) {
     return (
@@ -275,6 +311,32 @@ const Community = () => {
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Daily avg: <span className="font-semibold text-foreground">{memberWeeklyAvg}m/day</span></span>
           </div>
+        </div>
+
+        {/* Subject Breakdown */}
+        <div className="glass-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-foreground">By Subject</span>
+            <span className="text-xs text-muted-foreground">Last {memberChartRange}d · Live</span>
+          </div>
+          {memberSubjectData.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-8">No study sessions yet</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(140, memberSubjectData.length * 32)}>
+              <BarChart data={memberSubjectData} layout="vertical" margin={{ left: 0, right: 30, top: 4, bottom: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis dataKey="subject" type="category" tick={{ fontSize: 11, fill: "hsl(228 15% 75%)" }} axisLine={false} tickLine={false} width={70} />
+                <Tooltip
+                  cursor={{ fill: "hsl(228 25% 18% / 0.5)" }}
+                  contentStyle={{ background: "hsl(228 25% 12%)", border: "1px solid hsl(228 20% 18%)", borderRadius: 8, color: "hsl(210 40% 95%)" }}
+                  formatter={(v: number) => [fmtTime(v), "Time"]}
+                />
+                <Bar dataKey="minutes" radius={[0, 6, 6, 0]} label={{ position: "right", fill: "hsl(210 40% 95%)", fontSize: 11, formatter: (v: number) => fmtTime(v) }}>
+                  {memberSubjectData.map((_, idx) => <Cell key={idx} fill={subjectColors[idx % subjectColors.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     );
