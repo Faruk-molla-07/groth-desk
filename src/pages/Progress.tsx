@@ -20,7 +20,7 @@ const Progress = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
-  const [chartRange, setChartRange] = useState<7 | 14 | 30>(7);
+  const [chartRange, setChartRange] = useState<7 | 30 | "all">(7);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editHours, setEditHours] = useState(0);
   const [editMinutes, setEditMinutes] = useState(0);
@@ -100,8 +100,23 @@ const Progress = () => {
   }, [sessions]);
 
   const chartData = useMemo(() => {
+    let rangeDays: number;
+    if (chartRange === "all") {
+      if (sessions.length === 0) {
+        rangeDays = 7;
+      } else {
+        const earliest = sessions.reduce((min, s) => {
+          const d = new Date(s.started_at);
+          return d < min ? d : min;
+        }, new Date());
+        const diffMs = startOfDay(new Date()).getTime() - startOfDay(earliest).getTime();
+        rangeDays = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
+      }
+    } else {
+      rangeDays = chartRange;
+    }
     const days: { date: string; minutes: number }[] = [];
-    for (let i = chartRange - 1; i >= 0; i--) {
+    for (let i = rangeDays - 1; i >= 0; i--) {
       const day = subDays(new Date(), i);
       const dayStr = format(day, "yyyy-MM-dd");
       const mins = sessions
@@ -117,16 +132,18 @@ const Progress = () => {
     return Math.round(chartData.reduce((a, d) => a + d.minutes, 0) / chartData.length);
   }, [chartData]);
 
+  const [subjectRange, setSubjectRange] = useState<7 | 30 | "all">(7);
+
   const subjectData = useMemo(() => {
-    const cutoff = subDays(startOfDay(new Date()), chartRange - 1);
     const totals = new Map<string, number>();
-    sessions
-      .filter(s => new Date(s.started_at) >= cutoff)
-      .forEach(s => totals.set(s.subject || "Other", (totals.get(s.subject || "Other") || 0) + s.duration_minutes));
+    const filtered = subjectRange === "all"
+      ? sessions
+      : sessions.filter(s => new Date(s.started_at) >= subDays(startOfDay(new Date()), subjectRange - 1));
+    filtered.forEach(s => totals.set(s.subject || "Other", (totals.get(s.subject || "Other") || 0) + s.duration_minutes));
     return Array.from(totals.entries())
       .map(([subject, minutes]) => ({ subject, minutes }))
       .sort((a, b) => b.minutes - a.minutes);
-  }, [sessions, chartRange]);
+  }, [sessions, subjectRange]);
 
   const subjectColors = ["hsl(234 80% 63%)", "hsl(280 70% 60%)", "hsl(180 65% 55%)", "hsl(45 90% 60%)", "hsl(340 75% 60%)", "hsl(150 60% 55%)", "hsl(20 85% 60%)", "hsl(210 70% 60%)", "hsl(300 60% 60%)", "hsl(95 55% 55%)"];
 
@@ -222,15 +239,19 @@ const Progress = () => {
         <div className="flex items-center justify-between">
           <span className="font-semibold text-foreground">Daily Study Time</span>
           <div className="flex gap-1">
-            {([7, 14, 30] as const).map(r => (
+            {([
+              { v: 7 as const, l: "7d" },
+              { v: 30 as const, l: "30d" },
+              { v: "all" as const, l: "All" },
+            ]).map(({ v, l }) => (
               <button
-                key={r}
-                onClick={() => setChartRange(r)}
+                key={l}
+                onClick={() => setChartRange(v)}
                 className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
-                  chartRange === r ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                  chartRange === v ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
                 }`}
               >
-                {r}d
+                {l}
               </button>
             ))}
           </div>
@@ -255,7 +276,23 @@ const Progress = () => {
       <div className="glass-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-foreground">By Subject</span>
-          <span className="text-xs text-muted-foreground">Last {chartRange}d</span>
+          <div className="flex gap-1">
+            {([
+              { v: 7 as const, l: "7d" },
+              { v: 30 as const, l: "30d" },
+              { v: "all" as const, l: "All" },
+            ]).map(({ v, l }) => (
+              <button
+                key={l}
+                onClick={() => setSubjectRange(v)}
+                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                  subjectRange === v ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
         </div>
         {subjectData.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground py-8">No study sessions yet</div>
