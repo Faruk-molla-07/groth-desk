@@ -298,8 +298,8 @@ const Progress = () => {
           <div className="text-center text-sm text-muted-foreground py-8">No study sessions yet</div>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(140, subjectData.length * 32)}>
-            <BarChart data={subjectData} layout="vertical" margin={{ left: 0, right: 30, top: 4, bottom: 4 }}>
-              <XAxis type="number" hide />
+            <BarChart data={subjectData} layout="vertical" margin={{ left: 0, right: 60, top: 4, bottom: 4 }}>
+              <XAxis type="number" hide domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} />
               <YAxis dataKey="subject" type="category" tick={{ fontSize: 11, fill: "hsl(228 15% 75%)" }} axisLine={false} tickLine={false} width={70} />
               <Tooltip
                 cursor={{ fill: "hsl(228 25% 18% / 0.5)" }}
