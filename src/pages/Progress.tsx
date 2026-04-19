@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Pencil, Plus, Clock, Calendar, Minus, Trash2, Check, X, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, Cell } from "recharts";
 import { format, subDays, startOfDay, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 
 const subjects = ["Math", "Physics", "Chemistry", "Biology", "English", "History", "Bangla", "Ars", "Commerce", "Other"];
@@ -116,6 +116,19 @@ const Progress = () => {
     if (chartData.length === 0) return 0;
     return Math.round(chartData.reduce((a, d) => a + d.minutes, 0) / chartData.length);
   }, [chartData]);
+
+  const subjectData = useMemo(() => {
+    const cutoff = subDays(startOfDay(new Date()), chartRange - 1);
+    const totals = new Map<string, number>();
+    sessions
+      .filter(s => new Date(s.started_at) >= cutoff)
+      .forEach(s => totals.set(s.subject || "Other", (totals.get(s.subject || "Other") || 0) + s.duration_minutes));
+    return Array.from(totals.entries())
+      .map(([subject, minutes]) => ({ subject, minutes }))
+      .sort((a, b) => b.minutes - a.minutes);
+  }, [sessions, chartRange]);
+
+  const subjectColors = ["hsl(234 80% 63%)", "hsl(280 70% 60%)", "hsl(180 65% 55%)", "hsl(45 90% 60%)", "hsl(340 75% 60%)", "hsl(150 60% 55%)", "hsl(20 85% 60%)", "hsl(210 70% 60%)", "hsl(300 60% 60%)", "hsl(95 55% 55%)"];
 
   const fmtTime = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
 
@@ -236,6 +249,32 @@ const Progress = () => {
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Weekly avg: <span className="font-semibold text-foreground">{weeklyAvg}m/day</span></span>
         </div>
+      </div>
+
+      {/* Subject Breakdown Bar Chart */}
+      <div className="glass-card p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-foreground">By Subject</span>
+          <span className="text-xs text-muted-foreground">Last {chartRange}d</span>
+        </div>
+        {subjectData.length === 0 ? (
+          <div className="text-center text-sm text-muted-foreground py-8">No study sessions yet</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(140, subjectData.length * 32)}>
+            <BarChart data={subjectData} layout="vertical" margin={{ left: 0, right: 30, top: 4, bottom: 4 }}>
+              <XAxis type="number" hide />
+              <YAxis dataKey="subject" type="category" tick={{ fontSize: 11, fill: "hsl(228 15% 75%)" }} axisLine={false} tickLine={false} width={70} />
+              <Tooltip
+                cursor={{ fill: "hsl(228 25% 18% / 0.5)" }}
+                contentStyle={{ background: "hsl(228 25% 12%)", border: "1px solid hsl(228 20% 18%)", borderRadius: 8, color: "hsl(210 40% 95%)" }}
+                formatter={(v: number) => [fmtTime(v), "Time"]}
+              />
+              <Bar dataKey="minutes" radius={[0, 6, 6, 0]} label={{ position: "right", fill: "hsl(210 40% 95%)", fontSize: 11, formatter: (v: number) => fmtTime(v) }}>
+                {subjectData.map((_, idx) => <Cell key={idx} fill={subjectColors[idx % subjectColors.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Study Sessions List */}
