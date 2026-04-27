@@ -420,11 +420,36 @@ const Community = () => {
           <div className="h-14 w-14 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: selectedMember.avatar_color, color: "#fff" }}>
             {selectedMember.username[0]?.toUpperCase()}
           </div>
-          <div>
-            <div className="font-bold text-foreground text-lg">{selectedMember.username}</div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-foreground text-lg flex items-center gap-2 flex-wrap">
+              <span className="truncate">{selectedMember.username}</span>
+              {selectedMember.role === "owner" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/20 text-gold font-bold uppercase flex items-center gap-1"><Crown className="h-3 w-3" />Owner</span>}
+              {selectedMember.role === "admin" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase">Admin</span>}
+            </div>
             <div className="text-sm text-muted-foreground">{selectedCommunity.name}</div>
           </div>
         </div>
+
+        {/* Owner-only management actions */}
+        {selectedCommunity.created_by === user?.id && !selectedMember.isCurrentUser && (
+          <div className="glass-card p-3 space-y-2">
+            <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Manage Member</div>
+            <div className="flex gap-2 flex-wrap">
+              {selectedMember.role === "member" ? (
+                <Button variant="gradient-soft" size="sm" className="h-8 text-xs" onClick={() => promoteToAdmin(selectedMember.user_id)}>
+                  <Crown className="h-3 w-3 mr-1" /> Make Admin
+                </Button>
+              ) : selectedMember.role === "admin" ? (
+                <Button variant="secondary" size="sm" className="h-8 text-xs" onClick={() => demoteToMember(selectedMember.user_id)}>
+                  Remove Admin
+                </Button>
+              ) : null}
+              <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => removeMember(selectedMember.user_id)}>
+                <LogOut className="h-3 w-3 mr-1" /> Remove from Community
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="glass-card p-4">
