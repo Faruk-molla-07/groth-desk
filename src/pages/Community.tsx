@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, Plus, LogIn, Copy, LogOut, Crown, ArrowLeft, Clock, Calendar } from "lucide-react";
+import { Users, Plus, LogIn, Copy, LogOut, Crown, ArrowLeft, Clock, Calendar, Trophy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { startOfWeek, endOfWeek, isWithinInterval, format, subDays, startOfMonth, endOfMonth, isSaturday, previousSaturday, addDays } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, format, subDays, startOfMonth, endOfMonth, isSaturday, previousSaturday, addDays, formatDistanceToNowStrict } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, Cell } from "recharts";
 
 
@@ -27,6 +27,17 @@ interface LeaderboardEntry {
   isCurrentUser: boolean;
 }
 
+interface Challenge {
+  id: string;
+  community_id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  created_by: string;
+}
+
+type LeaderboardMode = "weekly" | "monthly" | "alltime" | "challenge";
+
 const Community = () => {
   const { user } = useAuth();
   const [communities, setCommunities] = useState<CommunityData[]>([]);
@@ -41,7 +52,15 @@ const Community = () => {
   const [selectedMember, setSelectedMember] = useState<LeaderboardEntry | null>(null);
   const [memberSessions, setMemberSessions] = useState<any[]>([]);
   const [memberChartRange, setMemberChartRange] = useState<7 | 14 | 30>(7);
-  const [leaderboardMode, setLeaderboardMode] = useState<"weekly" | "monthly" | "alltime">("weekly");
+  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>("weekly");
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
+  const [showChallengeDialog, setShowChallengeDialog] = useState(false);
+  const [chTitle, setChTitle] = useState("");
+  const [chStartDate, setChStartDate] = useState("");
+  const [chStartTime, setChStartTime] = useState("00:00");
+  const [chEndDate, setChEndDate] = useState("");
+  const [chEndTime, setChEndTime] = useState("23:59");
 
   const fetchCommunities = async () => {
     if (!user) return;
@@ -69,7 +88,26 @@ const Community = () => {
     return { start, end };
   };
 
-  const fetchLeaderboard = async (communityId: string, mode: "weekly" | "monthly" | "alltime" = leaderboardMode) => {
+  const fetchChallenges = async (communityId: string) => {
+    const { data } = await supabase
+      .from("challenges")
+      .select("*")
+      .eq("community_id", communityId)
+      .order("starts_at", { ascending: false });
+    const list = (data as Challenge[]) || [];
+    setChallenges(list);
+    const now = new Date();
+    const active = list.find(c => new Date(c.starts_at) <= now && new Date(c.ends_at) >= now);
+    const latestPast = list.find(c => new Date(c.ends_at) < now);
+    setActiveChallenge(active || latestPast || null);
+    return { list, active, latestPast };
+  };
+
+  const fetchLeaderboard = async (
+    communityId: string,
+    mode: LeaderboardMode = leaderboardMode,
+    challengeOverride?: Challenge | null,
+  ) => {
     const { data: members } = await supabase
       .from("memberships")
       .select("user_id")
@@ -94,6 +132,15 @@ const Community = () => {
       const start = startOfMonth(now);
       const end = endOfMonth(now);
       filterFn = (s) => isWithinInterval(new Date(s.started_at), { start, end });
+    } else if (mode === "challenge") {
+      const ch = challengeOverride !== undefined ? challengeOverride : activeChallenge;
+      if (!ch) {
+        setLeaderboard([]);
+        return;
+      }
+      const start = new Date(ch.starts_at);
+      const end = new Date(ch.ends_at);
+      filterFn = (s) => isWithinInterval(new Date(s.started_at), { start, end });
     } else {
       filterFn = () => true;
     }
@@ -116,9 +163,52 @@ const Community = () => {
     setLeaderboard(entries);
   };
 
-  const selectCommunity = (c: CommunityData) => {
+  const selectCommunity = async (c: CommunityData) => {
     setSelectedCommunity(c);
-    fetchLeaderboard(c.id);
+    setLeaderboardMode("weekly");
+    await fetchChallenges(c.id);
+    fetchLeaderboard(c.id, "weekly");
+  };
+
+  const createChallenge = async () => {
+    if (!user || !selectedCommunity) return;
+    if (selectedCommunity.created_by !== user.id) {
+      toast.error("Only the community owner can create challenges");
+      return;
+    }
+    if (!chStartDate || !chEndDate) {
+      toast.error("Please select start and end dates");
+      return;
+    }
+    const startsAt = new Date(`${chStartDate}T${chStartTime || "00:00"}:00`);
+    const endsAt = new Date(`${chEndDate}T${chEndTime || "23:59"}:00`);
+    if (endsAt <= startsAt) {
+      toast.error("End must be after start");
+      return;
+    }
+    const { error } = await supabase.from("challenges").insert({
+      community_id: selectedCommunity.id,
+      title: chTitle.trim() || "Challenge",
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      created_by: user.id,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Challenge created!");
+    setShowChallengeDialog(false);
+    setChTitle(""); setChStartDate(""); setChEndDate(""); setChStartTime("00:00"); setChEndTime("23:59");
+    const { active, latestPast } = await fetchChallenges(selectedCommunity.id);
+    setLeaderboardMode("challenge");
+    fetchLeaderboard(selectedCommunity.id, "challenge", active || latestPast || null);
+  };
+
+  const deleteChallenge = async (id: string) => {
+    if (!selectedCommunity) return;
+    const { error } = await supabase.from("challenges").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Challenge deleted");
+    await fetchChallenges(selectedCommunity.id);
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
   };
 
   const selectMember = async (entry: LeaderboardEntry) => {
@@ -242,12 +332,29 @@ const Community = () => {
             .eq("user_id", selectedMember.user_id)
             .order("started_at", { ascending: false });
           setMemberSessions(data || []);
-          if (selectedCommunity) fetchLeaderboard(selectedCommunity.id);
+          if (selectedCommunity) fetchLeaderboard(selectedCommunity.id, leaderboardMode);
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [selectedMember?.user_id]);
+
+  // Live updates for challenges in selected community
+  useEffect(() => {
+    if (!selectedCommunity) return;
+    const channel = supabase
+      .channel(`community-challenges-${selectedCommunity.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "challenges", filter: `community_id=eq.${selectedCommunity.id}` },
+        async () => {
+          await fetchChallenges(selectedCommunity.id);
+          if (leaderboardMode === "challenge") fetchLeaderboard(selectedCommunity.id, "challenge");
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedCommunity?.id, leaderboardMode]);
 
   // Member detail view
   if (selectedMember && selectedCommunity) {
@@ -391,27 +498,99 @@ const Community = () => {
           </button>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-            {leaderboardMode === "weekly" ? "This Week (Sat–Fri)" : leaderboardMode === "monthly" ? "This Month" : "All Time"} · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}
-          </div>
-        </div>
-        <div className="flex gap-1">
-          {(["weekly", "monthly", "alltime"] as const).map(mode => (
-            <button
-              key={mode}
-              onClick={() => { setLeaderboardMode(mode); fetchLeaderboard(selectedCommunity.id, mode); }}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                leaderboardMode === mode ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-              }`}
-            >
-              {mode === "weekly" ? "Weekly" : mode === "monthly" ? "Monthly" : "All Time"}
-            </button>
-          ))}
-        </div>
+        {(() => {
+          const isOwner = selectedCommunity.created_by === user?.id;
+          const now = new Date();
+          const isActive = !!activeChallenge && new Date(activeChallenge.starts_at) <= now && new Date(activeChallenge.ends_at) >= now;
+          const isPast = !!activeChallenge && new Date(activeChallenge.ends_at) < now;
+          const isUpcoming = !!activeChallenge && new Date(activeChallenge.starts_at) > now;
+          let headerText = "";
+          if (leaderboardMode === "weekly") headerText = "This Week (Sat–Fri)";
+          else if (leaderboardMode === "monthly") headerText = "This Month";
+          else if (leaderboardMode === "alltime") headerText = "All Time";
+          else if (leaderboardMode === "challenge") {
+            if (!activeChallenge) headerText = "No Challenges Yet";
+            else if (isActive) headerText = `${activeChallenge.title} · Active`;
+            else if (isPast) headerText = `${activeChallenge.title} · Final Results`;
+            else headerText = `${activeChallenge.title} · Upcoming`;
+          }
+          return (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                  {headerText} · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+              <div className="flex gap-1 flex-wrap">
+                {(["weekly", "monthly", "alltime", "challenge"] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => { setLeaderboardMode(mode); fetchLeaderboard(selectedCommunity.id, mode); }}
+                    className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors flex items-center gap-1 ${
+                      leaderboardMode === mode ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {mode === "challenge" && <Trophy className="h-3 w-3" />}
+                    {mode === "weekly" ? "Weekly" : mode === "monthly" ? "Monthly" : mode === "alltime" ? "All Time" : "Challenge"}
+                  </button>
+                ))}
+              </div>
+
+              {leaderboardMode === "challenge" && (
+                <div className="glass-card p-3 space-y-2">
+                  {activeChallenge ? (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground text-sm">{activeChallenge.title}</span>
+                            {isActive && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold uppercase">Live</span>}
+                            {isPast && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold uppercase">Ended</span>}
+                            {isUpcoming && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase">Soon</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {format(new Date(activeChallenge.starts_at), "MMM d, h:mm a")} → {format(new Date(activeChallenge.ends_at), "MMM d, h:mm a")}
+                          </div>
+                          <div className="text-[11px] text-primary mt-0.5">
+                            {isActive && `Ends in ${formatDistanceToNowStrict(new Date(activeChallenge.ends_at))}`}
+                            {isUpcoming && `Starts in ${formatDistanceToNowStrict(new Date(activeChallenge.starts_at))}`}
+                            {isPast && `Ended ${formatDistanceToNowStrict(new Date(activeChallenge.ends_at))} ago`}
+                          </div>
+                        </div>
+                        {activeChallenge.created_by === user?.id && (
+                          <button onClick={() => deleteChallenge(activeChallenge.id)} className="text-destructive p-1">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      {isOwner && !isActive && (
+                        <Button variant="gradient-soft" size="sm" className="w-full h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
+                          <Plus className="h-3 w-3 mr-1" /> Start New Challenge
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-2 space-y-2">
+                      <p className="text-sm text-muted-foreground">No challenges in this community yet.</p>
+                      {isOwner ? (
+                        <Button variant="gradient" size="sm" className="h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
+                          <Trophy className="h-3 w-3 mr-1" /> Create First Challenge
+                        </Button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Only the community owner can start a challenge.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         <div className="space-y-2">
-          {leaderboard.map((entry, i) => (
+          {leaderboardMode === "challenge" && !activeChallenge ? (
+            <div className="text-center text-sm text-muted-foreground py-6">No challenge data to display</div>
+          ) : leaderboard.map((entry, i) => (
             <button
               key={entry.user_id}
               onClick={() => selectMember(entry)}
@@ -439,6 +618,16 @@ const Community = () => {
           ))}
         </div>
 
+        <ChallengeDialog
+          open={showChallengeDialog}
+          onOpenChange={setShowChallengeDialog}
+          title={chTitle} setTitle={setChTitle}
+          startDate={chStartDate} setStartDate={setChStartDate}
+          startTime={chStartTime} setStartTime={setChStartTime}
+          endDate={chEndDate} setEndDate={setChEndDate}
+          endTime={chEndTime} setEndTime={setChEndTime}
+          onSubmit={createChallenge}
+        />
         <CreateDialog open={showCreate} onOpenChange={setShowCreate} name={newName} setName={setNewName} password={newPassword} setPassword={setNewPassword} onSubmit={createCommunity} />
         <JoinDialog open={showJoin} onOpenChange={setShowJoin} code={joinCode} setCode={setJoinCode} password={joinPassword} setPassword={setJoinPassword} onSubmit={joinCommunity} />
       </div>
@@ -497,6 +686,32 @@ const JoinDialog = ({ open, onOpenChange, code, setCode, password, setPassword, 
         <Input placeholder="Enter 6-character code" value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={6} className="bg-secondary border-border uppercase tracking-widest text-center font-bold" />
         <Input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="bg-secondary border-border" />
         <Button variant="gradient" className="w-full" onClick={onSubmit}>Join</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+
+const ChallengeDialog = ({ open, onOpenChange, title, setTitle, startDate, setStartDate, startTime, setStartTime, endDate, setEndDate, endTime, setEndTime, onSubmit }: any) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="bg-card border-border max-w-sm">
+      <DialogHeader><DialogTitle className="text-foreground">Create Challenge</DialogTitle></DialogHeader>
+      <div className="space-y-3">
+        <Input placeholder="Challenge name (e.g. Finals Sprint)" value={title} onChange={e => setTitle(e.target.value)} className="bg-secondary border-border" />
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Start</label>
+          <div className="flex gap-2">
+            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-secondary border-border flex-1" />
+            <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="bg-secondary border-border w-28" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">End</label>
+          <div className="flex gap-2">
+            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-secondary border-border flex-1" />
+            <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="bg-secondary border-border w-28" />
+          </div>
+        </div>
+        <Button variant="gradient" className="w-full" onClick={onSubmit}>Create Challenge</Button>
       </div>
     </DialogContent>
   </Dialog>
