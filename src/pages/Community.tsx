@@ -52,7 +52,15 @@ const Community = () => {
   const [selectedMember, setSelectedMember] = useState<LeaderboardEntry | null>(null);
   const [memberSessions, setMemberSessions] = useState<any[]>([]);
   const [memberChartRange, setMemberChartRange] = useState<7 | 14 | 30>(7);
-  const [leaderboardMode, setLeaderboardMode] = useState<"weekly" | "monthly" | "alltime">("weekly");
+  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>("weekly");
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
+  const [showChallengeDialog, setShowChallengeDialog] = useState(false);
+  const [chTitle, setChTitle] = useState("");
+  const [chStartDate, setChStartDate] = useState("");
+  const [chStartTime, setChStartTime] = useState("00:00");
+  const [chEndDate, setChEndDate] = useState("");
+  const [chEndTime, setChEndTime] = useState("23:59");
 
   const fetchCommunities = async () => {
     if (!user) return;
