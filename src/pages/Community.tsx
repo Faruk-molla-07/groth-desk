@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Users, Plus, LogIn, Copy, LogOut, Crown, ArrowLeft, Clock, Calendar } from "lucide-react";
+import { Users, Plus, LogIn, Copy, LogOut, Crown, ArrowLeft, Clock, Calendar, Trophy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { startOfWeek, endOfWeek, isWithinInterval, format, subDays, startOfMonth, endOfMonth, isSaturday, previousSaturday, addDays } from "date-fns";
+import { startOfWeek, endOfWeek, isWithinInterval, format, subDays, startOfMonth, endOfMonth, isSaturday, previousSaturday, addDays, formatDistanceToNowStrict } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar, Cell } from "recharts";
 
 
