@@ -339,6 +339,23 @@ const Community = () => {
     return () => { supabase.removeChannel(channel); };
   }, [selectedMember?.user_id]);
 
+  // Live updates for challenges in selected community
+  useEffect(() => {
+    if (!selectedCommunity) return;
+    const channel = supabase
+      .channel(`community-challenges-${selectedCommunity.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "challenges", filter: `community_id=eq.${selectedCommunity.id}` },
+        async () => {
+          await fetchChallenges(selectedCommunity.id);
+          if (leaderboardMode === "challenge") fetchLeaderboard(selectedCommunity.id, "challenge");
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedCommunity?.id, leaderboardMode]);
+
   // Member detail view
   if (selectedMember && selectedCommunity) {
     return (
