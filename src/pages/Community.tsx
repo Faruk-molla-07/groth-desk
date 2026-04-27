@@ -616,7 +616,7 @@ const Community = () => {
                           </button>
                         )}
                       </div>
-                      {isOwner && !isActive && (
+                      {canManage && !isActive && (
                         <Button variant="gradient-soft" size="sm" className="w-full h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
                           <Plus className="h-3 w-3 mr-1" /> Start New Challenge
                         </Button>
