@@ -25,6 +25,7 @@ interface LeaderboardEntry {
   avatar_color: string;
   weekMinutes: number;
   isCurrentUser: boolean;
+  role: "owner" | "admin" | "member";
 }
 
 interface Challenge {
