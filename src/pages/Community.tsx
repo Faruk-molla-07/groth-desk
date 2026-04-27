@@ -332,7 +332,7 @@ const Community = () => {
             .eq("user_id", selectedMember.user_id)
             .order("started_at", { ascending: false });
           setMemberSessions(data || []);
-          if (selectedCommunity) fetchLeaderboard(selectedCommunity.id);
+          if (selectedCommunity) fetchLeaderboard(selectedCommunity.id, leaderboardMode);
         }
       )
       .subscribe();
