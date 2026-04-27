@@ -654,8 +654,11 @@ const Community = () => {
                 {entry.username[0]?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-foreground truncate">
-                  {entry.username} {entry.isCurrentUser && <span className="text-muted-foreground">(you)</span>}
+                <div className="text-sm font-semibold text-foreground truncate flex items-center gap-1.5">
+                  <span className="truncate">{entry.username}</span>
+                  {entry.role === "owner" && <Crown className="h-3 w-3 text-gold flex-shrink-0" />}
+                  {entry.role === "admin" && <span className="text-[9px] px-1 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase flex-shrink-0">Admin</span>}
+                  {entry.isCurrentUser && <span className="text-muted-foreground text-xs">(you)</span>}
                 </div>
                 <div className="h-1.5 bg-secondary rounded-full mt-1 overflow-hidden">
                   <div
