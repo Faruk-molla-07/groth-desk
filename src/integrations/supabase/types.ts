@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      challenges: {
+        Row: {
+          community_id: string
+          created_at: string
+          created_by: string
+          ends_at: string
+          id: string
+          starts_at: string
+          title: string
+        }
+        Insert: {
+          community_id: string
+          created_at?: string
+          created_by: string
+          ends_at: string
+          id?: string
+          starts_at: string
+          title?: string
+        }
+        Update: {
+          community_id?: string
+          created_at?: string
+          created_by?: string
+          ends_at?: string
+          id?: string
+          starts_at?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenges_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       communities: {
         Row: {
           code: string
