@@ -27,6 +27,17 @@ interface LeaderboardEntry {
   isCurrentUser: boolean;
 }
 
+interface Challenge {
+  id: string;
+  community_id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  created_by: string;
+}
+
+type LeaderboardMode = "weekly" | "monthly" | "alltime" | "challenge";
+
 const Community = () => {
   const { user } = useAuth();
   const [communities, setCommunities] = useState<CommunityData[]>([]);
