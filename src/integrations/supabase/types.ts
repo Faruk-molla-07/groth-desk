@@ -229,6 +229,10 @@ export type Database = {
         Args: { _name: string; _password: string }
         Returns: Json
       }
+      is_community_admin: {
+        Args: { _community_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_community_member: {
         Args: { _community_id: string; _user_id: string }
         Returns: boolean

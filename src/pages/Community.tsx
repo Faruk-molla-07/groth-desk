@@ -25,6 +25,7 @@ interface LeaderboardEntry {
   avatar_color: string;
   weekMinutes: number;
   isCurrentUser: boolean;
+  role: "owner" | "admin" | "member";
 }
 
 interface Challenge {
@@ -110,11 +111,12 @@ const Community = () => {
   ) => {
     const { data: members } = await supabase
       .from("memberships")
-      .select("user_id")
+      .select("user_id, role")
       .eq("community_id", communityId);
     if (!members || members.length === 0) { setLeaderboard([]); return; }
 
     const userIds = [...new Set(members.map(m => m.user_id))];
+    const roleMap = new Map(members.map(m => [m.user_id, (m.role || "member") as "owner" | "admin" | "member"]));
 
     const [{ data: profiles }, { data: sessions }] = await Promise.all([
       supabase.from("profiles").select("user_id, username, avatar_color").in("user_id", userIds),
@@ -156,6 +158,7 @@ const Community = () => {
         avatar_color: profile?.avatar_color || "#6366F1",
         weekMinutes: mins,
         isCurrentUser: uid === user?.id,
+        role: roleMap.get(uid) || "member",
       };
     });
 
@@ -170,10 +173,59 @@ const Community = () => {
     fetchLeaderboard(c.id, "weekly");
   };
 
+  const myRole = (): "owner" | "admin" | "member" | null => {
+    if (!user) return null;
+    const me = leaderboard.find(e => e.user_id === user.id);
+    return me?.role || (selectedCommunity?.created_by === user.id ? "owner" : "member");
+  };
+
+  const canManageChallenges = () => {
+    const r = myRole();
+    return r === "owner" || r === "admin";
+  };
+
+  const promoteToAdmin = async (uid: string) => {
+    if (!selectedCommunity) return;
+    const { error } = await supabase
+      .from("memberships")
+      .update({ role: "admin" })
+      .eq("community_id", selectedCommunity.id)
+      .eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Promoted to admin");
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
+  };
+
+  const demoteToMember = async (uid: string) => {
+    if (!selectedCommunity) return;
+    const { error } = await supabase
+      .from("memberships")
+      .update({ role: "member" })
+      .eq("community_id", selectedCommunity.id)
+      .eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Demoted to member");
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
+  };
+
+  const removeMember = async (uid: string) => {
+    if (!selectedCommunity) return;
+    if (!confirm("Remove this member from the community?")) return;
+    const { error } = await supabase
+      .from("memberships")
+      .delete()
+      .eq("community_id", selectedCommunity.id)
+      .eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Member removed");
+    setSelectedMember(null);
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
+  };
+
   const createChallenge = async () => {
     if (!user || !selectedCommunity) return;
-    if (selectedCommunity.created_by !== user.id) {
-      toast.error("Only the community owner can create challenges");
+    if (!canManageChallenges()) {
+      toast.error("Only the owner or admins can create challenges");
       return;
     }
     if (!chStartDate || !chEndDate) {
@@ -368,11 +420,36 @@ const Community = () => {
           <div className="h-14 w-14 rounded-full flex items-center justify-center text-2xl font-bold" style={{ backgroundColor: selectedMember.avatar_color, color: "#fff" }}>
             {selectedMember.username[0]?.toUpperCase()}
           </div>
-          <div>
-            <div className="font-bold text-foreground text-lg">{selectedMember.username}</div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-foreground text-lg flex items-center gap-2 flex-wrap">
+              <span className="truncate">{selectedMember.username}</span>
+              {selectedMember.role === "owner" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/20 text-gold font-bold uppercase flex items-center gap-1"><Crown className="h-3 w-3" />Owner</span>}
+              {selectedMember.role === "admin" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase">Admin</span>}
+            </div>
             <div className="text-sm text-muted-foreground">{selectedCommunity.name}</div>
           </div>
         </div>
+
+        {/* Owner-only management actions */}
+        {selectedCommunity.created_by === user?.id && !selectedMember.isCurrentUser && (
+          <div className="glass-card p-3 space-y-2">
+            <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Manage Member</div>
+            <div className="flex gap-2 flex-wrap">
+              {selectedMember.role === "member" ? (
+                <Button variant="gradient-soft" size="sm" className="h-8 text-xs" onClick={() => promoteToAdmin(selectedMember.user_id)}>
+                  <Crown className="h-3 w-3 mr-1" /> Make Admin
+                </Button>
+              ) : selectedMember.role === "admin" ? (
+                <Button variant="secondary" size="sm" className="h-8 text-xs" onClick={() => demoteToMember(selectedMember.user_id)}>
+                  Remove Admin
+                </Button>
+              ) : null}
+              <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => removeMember(selectedMember.user_id)}>
+                <LogOut className="h-3 w-3 mr-1" /> Remove from Community
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="glass-card p-4">
@@ -500,6 +577,7 @@ const Community = () => {
 
         {(() => {
           const isOwner = selectedCommunity.created_by === user?.id;
+          const canManage = canManageChallenges();
           const now = new Date();
           const isActive = !!activeChallenge && new Date(activeChallenge.starts_at) <= now && new Date(activeChallenge.ends_at) >= now;
           const isPast = !!activeChallenge && new Date(activeChallenge.ends_at) < now;
@@ -563,7 +641,7 @@ const Community = () => {
                           </button>
                         )}
                       </div>
-                      {isOwner && !isActive && (
+                      {canManage && !isActive && (
                         <Button variant="gradient-soft" size="sm" className="w-full h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
                           <Plus className="h-3 w-3 mr-1" /> Start New Challenge
                         </Button>
@@ -572,12 +650,12 @@ const Community = () => {
                   ) : (
                     <div className="text-center py-2 space-y-2">
                       <p className="text-sm text-muted-foreground">No challenges in this community yet.</p>
-                      {isOwner ? (
+                      {canManage ? (
                         <Button variant="gradient" size="sm" className="h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
                           <Trophy className="h-3 w-3 mr-1" /> Create First Challenge
                         </Button>
                       ) : (
-                        <p className="text-xs text-muted-foreground">Only the community owner can start a challenge.</p>
+                        <p className="text-xs text-muted-foreground">Only the owner or admins can start a challenge.</p>
                       )}
                     </div>
                   )}
@@ -601,8 +679,11 @@ const Community = () => {
                 {entry.username[0]?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-foreground truncate">
-                  {entry.username} {entry.isCurrentUser && <span className="text-muted-foreground">(you)</span>}
+                <div className="text-sm font-semibold text-foreground truncate flex items-center gap-1.5">
+                  <span className="truncate">{entry.username}</span>
+                  {entry.role === "owner" && <Crown className="h-3 w-3 text-gold flex-shrink-0" />}
+                  {entry.role === "admin" && <span className="text-[9px] px-1 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase flex-shrink-0">Admin</span>}
+                  {entry.isCurrentUser && <span className="text-muted-foreground text-xs">(you)</span>}
                 </div>
                 <div className="h-1.5 bg-secondary rounded-full mt-1 overflow-hidden">
                   <div
