@@ -111,11 +111,12 @@ const Community = () => {
   ) => {
     const { data: members } = await supabase
       .from("memberships")
-      .select("user_id")
+      .select("user_id, role")
       .eq("community_id", communityId);
     if (!members || members.length === 0) { setLeaderboard([]); return; }
 
     const userIds = [...new Set(members.map(m => m.user_id))];
+    const roleMap = new Map(members.map(m => [m.user_id, (m.role || "member") as "owner" | "admin" | "member"]));
 
     const [{ data: profiles }, { data: sessions }] = await Promise.all([
       supabase.from("profiles").select("user_id, username, avatar_color").in("user_id", userIds),
@@ -157,6 +158,7 @@ const Community = () => {
         avatar_color: profile?.avatar_color || "#6366F1",
         weekMinutes: mins,
         isCurrentUser: uid === user?.id,
+        role: roleMap.get(uid) || "member",
       };
     });
 
