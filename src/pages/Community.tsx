@@ -498,24 +498,94 @@ const Community = () => {
           </button>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-            {leaderboardMode === "weekly" ? "This Week (Sat–Fri)" : leaderboardMode === "monthly" ? "This Month" : "All Time"} · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}
-          </div>
-        </div>
-        <div className="flex gap-1">
-          {(["weekly", "monthly", "alltime"] as const).map(mode => (
-            <button
-              key={mode}
-              onClick={() => { setLeaderboardMode(mode); fetchLeaderboard(selectedCommunity.id, mode); }}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
-                leaderboardMode === mode ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-              }`}
-            >
-              {mode === "weekly" ? "Weekly" : mode === "monthly" ? "Monthly" : "All Time"}
-            </button>
-          ))}
-        </div>
+        {(() => {
+          const isOwner = selectedCommunity.created_by === user?.id;
+          const now = new Date();
+          const isActive = !!activeChallenge && new Date(activeChallenge.starts_at) <= now && new Date(activeChallenge.ends_at) >= now;
+          const isPast = !!activeChallenge && new Date(activeChallenge.ends_at) < now;
+          const isUpcoming = !!activeChallenge && new Date(activeChallenge.starts_at) > now;
+          let headerText = "";
+          if (leaderboardMode === "weekly") headerText = "This Week (Sat–Fri)";
+          else if (leaderboardMode === "monthly") headerText = "This Month";
+          else if (leaderboardMode === "alltime") headerText = "All Time";
+          else if (leaderboardMode === "challenge") {
+            if (!activeChallenge) headerText = "No Challenges Yet";
+            else if (isActive) headerText = `${activeChallenge.title} · Active`;
+            else if (isPast) headerText = `${activeChallenge.title} · Final Results`;
+            else headerText = `${activeChallenge.title} · Upcoming`;
+          }
+          return (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                  {headerText} · {leaderboard.length} Member{leaderboard.length !== 1 ? "s" : ""}
+                </div>
+              </div>
+              <div className="flex gap-1 flex-wrap">
+                {(["weekly", "monthly", "alltime", "challenge"] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => { setLeaderboardMode(mode); fetchLeaderboard(selectedCommunity.id, mode); }}
+                    className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors flex items-center gap-1 ${
+                      leaderboardMode === mode ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {mode === "challenge" && <Trophy className="h-3 w-3" />}
+                    {mode === "weekly" ? "Weekly" : mode === "monthly" ? "Monthly" : mode === "alltime" ? "All Time" : "Challenge"}
+                  </button>
+                ))}
+              </div>
+
+              {leaderboardMode === "challenge" && (
+                <div className="glass-card p-3 space-y-2">
+                  {activeChallenge ? (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground text-sm">{activeChallenge.title}</span>
+                            {isActive && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold uppercase">Live</span>}
+                            {isPast && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold uppercase">Ended</span>}
+                            {isUpcoming && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold uppercase">Soon</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {format(new Date(activeChallenge.starts_at), "MMM d, h:mm a")} → {format(new Date(activeChallenge.ends_at), "MMM d, h:mm a")}
+                          </div>
+                          <div className="text-[11px] text-primary mt-0.5">
+                            {isActive && `Ends in ${formatDistanceToNowStrict(new Date(activeChallenge.ends_at))}`}
+                            {isUpcoming && `Starts in ${formatDistanceToNowStrict(new Date(activeChallenge.starts_at))}`}
+                            {isPast && `Ended ${formatDistanceToNowStrict(new Date(activeChallenge.ends_at))} ago`}
+                          </div>
+                        </div>
+                        {activeChallenge.created_by === user?.id && (
+                          <button onClick={() => deleteChallenge(activeChallenge.id)} className="text-destructive p-1">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      {isOwner && !isActive && (
+                        <Button variant="gradient-soft" size="sm" className="w-full h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
+                          <Plus className="h-3 w-3 mr-1" /> Start New Challenge
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-2 space-y-2">
+                      <p className="text-sm text-muted-foreground">No challenges in this community yet.</p>
+                      {isOwner ? (
+                        <Button variant="gradient" size="sm" className="h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
+                          <Trophy className="h-3 w-3 mr-1" /> Create First Challenge
+                        </Button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Only the community owner can start a challenge.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         <div className="space-y-2">
           {leaderboard.map((entry, i) => (
