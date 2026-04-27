@@ -625,12 +625,12 @@ const Community = () => {
                   ) : (
                     <div className="text-center py-2 space-y-2">
                       <p className="text-sm text-muted-foreground">No challenges in this community yet.</p>
-                      {isOwner ? (
+                      {canManage ? (
                         <Button variant="gradient" size="sm" className="h-8 text-xs" onClick={() => setShowChallengeDialog(true)}>
                           <Trophy className="h-3 w-3 mr-1" /> Create First Challenge
                         </Button>
                       ) : (
-                        <p className="text-xs text-muted-foreground">Only the community owner can start a challenge.</p>
+                        <p className="text-xs text-muted-foreground">Only the owner or admins can start a challenge.</p>
                       )}
                     </div>
                   )}
