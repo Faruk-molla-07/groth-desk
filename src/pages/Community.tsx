@@ -173,10 +173,59 @@ const Community = () => {
     fetchLeaderboard(c.id, "weekly");
   };
 
+  const myRole = (): "owner" | "admin" | "member" | null => {
+    if (!user) return null;
+    const me = leaderboard.find(e => e.user_id === user.id);
+    return me?.role || (selectedCommunity?.created_by === user.id ? "owner" : "member");
+  };
+
+  const canManageChallenges = () => {
+    const r = myRole();
+    return r === "owner" || r === "admin";
+  };
+
+  const promoteToAdmin = async (uid: string) => {
+    if (!selectedCommunity) return;
+    const { error } = await supabase
+      .from("memberships")
+      .update({ role: "admin" })
+      .eq("community_id", selectedCommunity.id)
+      .eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Promoted to admin");
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
+  };
+
+  const demoteToMember = async (uid: string) => {
+    if (!selectedCommunity) return;
+    const { error } = await supabase
+      .from("memberships")
+      .update({ role: "member" })
+      .eq("community_id", selectedCommunity.id)
+      .eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Demoted to member");
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
+  };
+
+  const removeMember = async (uid: string) => {
+    if (!selectedCommunity) return;
+    if (!confirm("Remove this member from the community?")) return;
+    const { error } = await supabase
+      .from("memberships")
+      .delete()
+      .eq("community_id", selectedCommunity.id)
+      .eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Member removed");
+    setSelectedMember(null);
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
+  };
+
   const createChallenge = async () => {
     if (!user || !selectedCommunity) return;
-    if (selectedCommunity.created_by !== user.id) {
-      toast.error("Only the community owner can create challenges");
+    if (!canManageChallenges()) {
+      toast.error("Only the owner or admins can create challenges");
       return;
     }
     if (!chStartDate || !chEndDate) {
