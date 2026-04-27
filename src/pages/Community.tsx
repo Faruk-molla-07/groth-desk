@@ -691,4 +691,30 @@ const JoinDialog = ({ open, onOpenChange, code, setCode, password, setPassword, 
   </Dialog>
 );
 
+const ChallengeDialog = ({ open, onOpenChange, title, setTitle, startDate, setStartDate, startTime, setStartTime, endDate, setEndDate, endTime, setEndTime, onSubmit }: any) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="bg-card border-border max-w-sm">
+      <DialogHeader><DialogTitle className="text-foreground">Create Challenge</DialogTitle></DialogHeader>
+      <div className="space-y-3">
+        <Input placeholder="Challenge name (e.g. Finals Sprint)" value={title} onChange={e => setTitle(e.target.value)} className="bg-secondary border-border" />
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Start</label>
+          <div className="flex gap-2">
+            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-secondary border-border flex-1" />
+            <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="bg-secondary border-border w-28" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">End</label>
+          <div className="flex gap-2">
+            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-secondary border-border flex-1" />
+            <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="bg-secondary border-border w-28" />
+          </div>
+        </div>
+        <Button variant="gradient" className="w-full" onClick={onSubmit}>Create Challenge</Button>
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+
 export default Community;
