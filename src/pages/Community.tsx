@@ -588,7 +588,9 @@ const Community = () => {
         })()}
 
         <div className="space-y-2">
-          {leaderboard.map((entry, i) => (
+          {leaderboardMode === "challenge" && !activeChallenge ? (
+            <div className="text-center text-sm text-muted-foreground py-6">No challenge data to display</div>
+          ) : leaderboard.map((entry, i) => (
             <button
               key={entry.user_id}
               onClick={() => selectMember(entry)}
@@ -616,6 +618,16 @@ const Community = () => {
           ))}
         </div>
 
+        <ChallengeDialog
+          open={showChallengeDialog}
+          onOpenChange={setShowChallengeDialog}
+          title={chTitle} setTitle={setChTitle}
+          startDate={chStartDate} setStartDate={setChStartDate}
+          startTime={chStartTime} setStartTime={setChStartTime}
+          endDate={chEndDate} setEndDate={setChEndDate}
+          endTime={chEndTime} setEndTime={setChEndTime}
+          onSubmit={createChallenge}
+        />
         <CreateDialog open={showCreate} onOpenChange={setShowCreate} name={newName} setName={setNewName} password={newPassword} setPassword={setNewPassword} onSubmit={createCommunity} />
         <JoinDialog open={showJoin} onOpenChange={setShowJoin} code={joinCode} setCode={setJoinCode} password={joinPassword} setPassword={setJoinPassword} onSubmit={joinCommunity} />
       </div>
