@@ -552,6 +552,7 @@ const Community = () => {
 
         {(() => {
           const isOwner = selectedCommunity.created_by === user?.id;
+          const canManage = canManageChallenges();
           const now = new Date();
           const isActive = !!activeChallenge && new Date(activeChallenge.starts_at) <= now && new Date(activeChallenge.ends_at) >= now;
           const isPast = !!activeChallenge && new Date(activeChallenge.ends_at) < now;
