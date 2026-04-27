@@ -88,7 +88,26 @@ const Community = () => {
     return { start, end };
   };
 
-  const fetchLeaderboard = async (communityId: string, mode: "weekly" | "monthly" | "alltime" = leaderboardMode) => {
+  const fetchChallenges = async (communityId: string) => {
+    const { data } = await supabase
+      .from("challenges")
+      .select("*")
+      .eq("community_id", communityId)
+      .order("starts_at", { ascending: false });
+    const list = (data as Challenge[]) || [];
+    setChallenges(list);
+    const now = new Date();
+    const active = list.find(c => new Date(c.starts_at) <= now && new Date(c.ends_at) >= now);
+    const latestPast = list.find(c => new Date(c.ends_at) < now);
+    setActiveChallenge(active || latestPast || null);
+    return { list, active, latestPast };
+  };
+
+  const fetchLeaderboard = async (
+    communityId: string,
+    mode: LeaderboardMode = leaderboardMode,
+    challengeOverride?: Challenge | null,
+  ) => {
     const { data: members } = await supabase
       .from("memberships")
       .select("user_id")
@@ -113,6 +132,15 @@ const Community = () => {
       const start = startOfMonth(now);
       const end = endOfMonth(now);
       filterFn = (s) => isWithinInterval(new Date(s.started_at), { start, end });
+    } else if (mode === "challenge") {
+      const ch = challengeOverride !== undefined ? challengeOverride : activeChallenge;
+      if (!ch) {
+        setLeaderboard([]);
+        return;
+      }
+      const start = new Date(ch.starts_at);
+      const end = new Date(ch.ends_at);
+      filterFn = (s) => isWithinInterval(new Date(s.started_at), { start, end });
     } else {
       filterFn = () => true;
     }
@@ -135,9 +163,52 @@ const Community = () => {
     setLeaderboard(entries);
   };
 
-  const selectCommunity = (c: CommunityData) => {
+  const selectCommunity = async (c: CommunityData) => {
     setSelectedCommunity(c);
-    fetchLeaderboard(c.id);
+    setLeaderboardMode("weekly");
+    await fetchChallenges(c.id);
+    fetchLeaderboard(c.id, "weekly");
+  };
+
+  const createChallenge = async () => {
+    if (!user || !selectedCommunity) return;
+    if (selectedCommunity.created_by !== user.id) {
+      toast.error("Only the community owner can create challenges");
+      return;
+    }
+    if (!chStartDate || !chEndDate) {
+      toast.error("Please select start and end dates");
+      return;
+    }
+    const startsAt = new Date(`${chStartDate}T${chStartTime || "00:00"}:00`);
+    const endsAt = new Date(`${chEndDate}T${chEndTime || "23:59"}:00`);
+    if (endsAt <= startsAt) {
+      toast.error("End must be after start");
+      return;
+    }
+    const { error } = await supabase.from("challenges").insert({
+      community_id: selectedCommunity.id,
+      title: chTitle.trim() || "Challenge",
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      created_by: user.id,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Challenge created!");
+    setShowChallengeDialog(false);
+    setChTitle(""); setChStartDate(""); setChEndDate(""); setChStartTime("00:00"); setChEndTime("23:59");
+    const { active, latestPast } = await fetchChallenges(selectedCommunity.id);
+    setLeaderboardMode("challenge");
+    fetchLeaderboard(selectedCommunity.id, "challenge", active || latestPast || null);
+  };
+
+  const deleteChallenge = async (id: string) => {
+    if (!selectedCommunity) return;
+    const { error } = await supabase.from("challenges").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Challenge deleted");
+    await fetchChallenges(selectedCommunity.id);
+    fetchLeaderboard(selectedCommunity.id, leaderboardMode);
   };
 
   const selectMember = async (entry: LeaderboardEntry) => {
