@@ -600,7 +600,7 @@ const Community = () => {
                 </div>
               </div>
               <div className="flex gap-1 flex-wrap">
-                {(["weekly", "monthly", "alltime", "challenge"] as const).map(mode => (
+                {(["challenge", "weekly", "monthly", "alltime"] as const).map(mode => (
                   <button
                     key={mode}
                     onClick={() => { setLeaderboardMode(mode); fetchLeaderboard(selectedCommunity.id, mode); }}
