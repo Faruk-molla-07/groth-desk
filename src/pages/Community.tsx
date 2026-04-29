@@ -53,7 +53,7 @@ const Community = () => {
   const [selectedMember, setSelectedMember] = useState<LeaderboardEntry | null>(null);
   const [memberSessions, setMemberSessions] = useState<any[]>([]);
   const [memberChartRange, setMemberChartRange] = useState<7 | 14 | 30>(7);
-  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>("weekly");
+  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode>("challenge");
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
   const [showChallengeDialog, setShowChallengeDialog] = useState(false);
@@ -168,9 +168,9 @@ const Community = () => {
 
   const selectCommunity = async (c: CommunityData) => {
     setSelectedCommunity(c);
-    setLeaderboardMode("weekly");
+    setLeaderboardMode("challenge");
     await fetchChallenges(c.id);
-    fetchLeaderboard(c.id, "weekly");
+    fetchLeaderboard(c.id, "challenge");
   };
 
   const myRole = (): "owner" | "admin" | "member" | null => {
