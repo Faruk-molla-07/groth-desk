@@ -169,8 +169,8 @@ const Community = () => {
   const selectCommunity = async (c: CommunityData) => {
     setSelectedCommunity(c);
     setLeaderboardMode("challenge");
-    await fetchChallenges(c.id);
-    fetchLeaderboard(c.id, "challenge");
+    const { active, latestPast } = await fetchChallenges(c.id);
+    fetchLeaderboard(c.id, "challenge", active || latestPast || null);
   };
 
   const myRole = (): "owner" | "admin" | "member" | null => {
